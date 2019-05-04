@@ -1,0 +1,18 @@
+{
+  "name": "effplang",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "runindex": "npm run build && node build/src/index",
+    "start": "node build/src/cli"
+  },
+  "author": "Albert ten Napel",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^11.11.3",
+    "typescript": "^3.4"
+  },
+  "dependencies": {}
+}
