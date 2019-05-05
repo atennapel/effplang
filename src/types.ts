@@ -1,4 +1,4 @@
-import { impossible } from "./util";
+import { impossible } from './util';
 
 export type TConName = string;
 export type TVarName = string;
@@ -42,35 +42,55 @@ export interface TApp {
 export const TApp = (left: Type, right: Type): TApp => ({ tag: 'TApp', left, right });
 export const tappFrom = (ts: Type[]): Type => ts.reduce(TApp);
 export const tapp = (...ts: Type[]): Type => tappFrom(ts);
+export const flattenTApp = (type: Type): Type[] => {
+  let c = type;
+  const r: Type[] = [];
+  while (c.tag === 'TApp') {
+    r.push(c.right);
+    c = c.left;
+  }
+  r.push(c);
+  return r.reverse();
+};
 
 export const tFun = TCon('->');
 export const TFun = (left: Type, right: Type) => TApp(TApp(tFun, left), right);
 export const tfunFrom = (ts: Type[]): Type => ts.reduceRight((a, b) => TFun(b, a));
 export const tfun = (...ts: Type[]): Type => tfunFrom(ts);
 export interface ITFun { left: Type, right: Type }
-export const isTFun = (type: Type): type is TApp =>
+export const isTFun = (type: Type): boolean =>
   type.tag === 'TApp' && type.left.tag === 'TApp' && type.left.left === tFun;
 export const matchTFun = (type: Type): ITFun | null =>
-  isTFun(type) ? ({ left: (type.left as any).right, right: type.right }) : null;
+  isTFun(type) ? ({ left: ((type as TApp).left as TApp).right, right: (type as TApp).right }) : null;
+export const flattenTFun = (type: Type): Type[] => {
+  let c = type;
+  const r: Type[] = [];
+  while (isTFun(c)) {
+    r.push(((c as TApp).left as TApp).right);
+    c = (c as TApp).right;
+  }
+  r.push(c);
+  return r;
+};
 
 export const showType = (type: Type): string => {
   if (type.tag === 'TCon') return `${type.name}`;
   if (type.tag === 'TVar') return `${type.name}`;
   if (type.tag === 'TMeta')
     return type.name ? `?${type.name}\$${type.id}` : `?${type.id}`;
-  if (type.tag === 'TApp') return `(${showType(type.left)} ${showType(type.right)})`;
+  if (isTFun(type)) {
+    const ts = flattenTFun(type);
+    return ts.map(t => isTFun(t) ? `(${showType(t)})` : showType(t)).join(' -> ');
+  }
+  if (type.tag === 'TApp') {
+    const ts = flattenTApp(type);
+    return ts.map(t => t.tag === 'TApp' ? `(${showType(t)})` : showType(t)).join(' ');
+  }
   return impossible('showType');
 };
 
-export const occursTMeta = (m: TMeta, type: Type): boolean => {
-  if (type === m) return true;
-  if (type.tag === 'TApp')
-    return occursTMeta(m, type.left) || occursTMeta(m, type.right);
-  return false;
-};
-
 export const prune = (type: Type): Type => {
-  console.log(showType(type));
+  // console.log(`prune ${showType(type)}`);
   if (type.tag === 'TMeta') {
     if (!type.type) return type;
     const ty = prune(type.type);
@@ -84,4 +104,19 @@ export const prune = (type: Type): Type => {
       TApp(l, r);
   }
   return type;
+};
+
+export type Free = { [key: string]: boolean };
+export const freeTMeta = (type: Type, map: Free = {}): Free => {
+  if (type.tag === 'TMeta') {
+    if (type.type) return freeTMeta(type.type, map);
+    map[type.id] = true;
+    return map;
+  }
+  if (type.tag === 'TApp') {
+    freeTMeta(type.left, map);
+    freeTMeta(type.right, map);
+    return map;
+  }
+  return map;
 };

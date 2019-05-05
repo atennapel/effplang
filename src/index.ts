@@ -10,9 +10,3 @@ const term = lets([['diag', abs(['x'], app(Var('pair'), Var('x'), Var('x')))]], 
 console.log(showTerm(term));
 const ty = typecheck(genv, term);
 console.log(showType(ty));
-
-/**
- * TODO:
- *  Fix the above (problem with unification?)
- *  add generalization
- */
