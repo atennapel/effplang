@@ -1,8 +1,10 @@
-import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName } from './types';
+import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty } from './types';
 import { Term, Name, showTerm } from './terms';
 import { impossible, terr } from './util';
 import { List, Nil, lookup, extend, each, toString } from './List';
 import { unify } from './unification';
+
+export interface TypeEff { type: Type, eff: Type };
 
 export type GTEnv = { [key: string]: Type };
 type LTEnv = List<[Name, Type]>;
@@ -67,38 +69,41 @@ const gen = (type: Type, lenv: LTEnv): Type => {
   return genR(type, free);
 };
 
-export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): Type => {
-  // console.log(`infer ${showTerm(term)} ${toString(lenv, ([x, t]) => `${x} : ${showType(t)}`)}`);
+export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {
+  console.log(`infer ${showTerm(term)} ${toString(lenv, ([x, t]) => `${x} : ${showType(t)}`)}`);
   if (term.tag === 'Var') {
     const ty = lookup(lenv, term.name) || genv[term.name];
     if (!ty) return terr(`undefined var ${term.name}`);
     const i = inst(ty);
-    return i;
+    return { type: i, eff: freshTMeta('e') };
   }
   if (term.tag === 'Abs') {
     const tv = freshTMeta();
-    const ty = infer(genv, term.body, extend(term.name, tv, lenv));
-    return TFun(tv, ty);
+    const { type, eff } = infer(genv, term.body, extend(term.name, tv, lenv));
+    return { type: TFun(tv, eff, type), eff: freshTMeta('e') };
   }
   if (term.tag === 'App') {
-    const left = infer(genv, term.left, lenv);
-    const right = infer(genv, term.right, lenv);
+    const { type: tleft, eff: effleft } = infer(genv, term.left, lenv);
+    const { type: tright, eff: effright } = infer(genv, term.right, lenv);
     const tv = freshTMeta();
-    unify(left, TFun(right, tv));
-    return tv;
+    unify(effleft, effright);
+    unify(tleft, TFun(tright, effright, tv));
+    return { type: tv, eff: effleft };
   }
   if (term.tag === 'Let') {
     const tv = freshTMeta();
-    const ty = infer(genv, term.val, extend(term.name, tv, lenv));
-    unify(tv, ty);
-    const gty = gen(ty, lenv);
-    return infer(genv, term.body, extend(term.name, gty, lenv));
+    const { type, eff } = infer(genv, term.val, extend(term.name, tv, lenv));
+    unify(tv, type);
+    const gty = gen(type, lenv);
+    const res = infer(genv, term.body, extend(term.name, gty, lenv));
+    unify(res.eff, eff);
+    return res;
   }
   return impossible('infer');
 };
 
-export const typecheck = (genv: GTEnv, term: Term): Type => {
+export const typecheck = (genv: GTEnv, term: Term): { type: Type, eff: Type } => {
   resetTMetaId();
-  const ty = infer(genv, term, Nil);
-  return gen(prune(ty), Nil);
+  const { type, eff } = infer(genv, term, Nil);
+  return { type: gen(prune(type), Nil), eff: prune(eff) };
 };

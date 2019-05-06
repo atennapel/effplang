@@ -53,40 +53,62 @@ export const flattenTApp = (type: Type): Type[] => {
   return r.reverse();
 };
 
-export const tFun = TCon('->');
-export const TFun = (left: Type, right: Type) => TApp(TApp(tFun, left), right);
-export const tfunFrom = (ts: Type[]): Type => ts.reduceRight((a, b) => TFun(b, a));
-export const tfun = (...ts: Type[]): Type => tfunFrom(ts);
-export interface ITFun { left: Type, right: Type }
-export const isTFun = (type: Type): boolean =>
-  type.tag === 'TApp' && type.left.tag === 'TApp' && type.left.left === tFun;
-export const matchTFun = (type: Type): ITFun | null =>
-  isTFun(type) ? ({ left: ((type as TApp).left as TApp).right, right: (type as TApp).right }) : null;
-export const flattenTFun = (type: Type): Type[] => {
+export const tEffEmpty = TCon('<>');
+export const tEffExtend = TCon('|');
+export const TEffExtend = (eff: Type, rest: Type) => TApp(TApp(tEffExtend, eff), rest);
+export const teffExtendFrom = (effs: Type[], rest: Type = tEffEmpty) =>
+  effs.reduceRight((x, y) => TEffExtend(y, x), rest)
+export interface ITEffExtend { eff: Type, rest: Type }
+export const isTEffExtend = (type: Type): boolean =>
+  type.tag === 'TApp' && type.left.tag === 'TApp' && type.left.left === tEffExtend;
+export const matchTEffExtend = (type: Type): ITEffExtend | null =>
+  isTEffExtend(type) ? ({ eff: ((type as TApp).left as TApp).right, rest: (type as TApp).right }) : null;
+export const flattenTEffExtend = (type: Type): { effs: Type[], rest: Type } => {
   let c = type;
-  const r: Type[] = [];
-  while (isTFun(c)) {
-    r.push(((c as TApp).left as TApp).right);
+  const effs: Type[] = [];
+  while (isTEffExtend(c)) {
+    effs.push(((c as TApp).left as TApp).right);
     c = (c as TApp).right;
   }
-  r.push(c);
-  return r;
+  return { effs, rest: c };
 };
+
+export const tFun = TCon('->');
+export const TFun = (left: Type, effs: Type, right: Type) => TApp(TApp(TApp(tFun, left), effs), right);
+export const tfunFrom = (ts: Type[]): Type => ts.reduceRight((a, b) => TFun(b, tEffEmpty, a));
+export const tfun = (...ts: Type[]): Type => tfunFrom(ts);
+export interface ITFun { left: Type, effs: Type, right: Type }
+export const isTFun = (type: Type): boolean =>
+  type.tag === 'TApp' && type.left.tag === 'TApp' && type.left.left.tag === 'TApp' && type.left.left.left === tFun;
+export const matchTFun = (type: Type): ITFun | null =>
+  isTFun(type) ? ({ left: (((type as TApp).left as TApp).left as TApp).right, effs: ((type as TApp).left as TApp).right, right: (type as TApp).right }) : null;
 
 export const showType = (type: Type): string => {
   if (type.tag === 'TCon') return `${type.name}`;
   if (type.tag === 'TVar') return `${type.name}`;
   if (type.tag === 'TMeta')
     return type.name ? `?${type.name}\$${type.id}` : `?${type.id}`;
-  if (isTFun(type)) {
-    const ts = flattenTFun(type);
-    return ts.map(t => isTFun(t) ? `(${showType(t)})` : showType(t)).join(' -> ');
+  if (isTEffExtend(type)) {
+    const fl = flattenTEffExtend(type);
+    return `<${fl.effs.map(showType).join(', ')}${fl.rest === tEffEmpty ? '' : ` | ${showType(fl.rest)}`}>`;
+  }
+  const m = matchTFun(type);
+  if (m) {
+    return `${isTFun(m.left) ? `(${showType(m.left)})` : showType(m.left)} -> ${m.effs === tEffEmpty ? '' : ` ${showType(m.effs)}`}${showType(m.right)}`;
   }
   if (type.tag === 'TApp') {
     const ts = flattenTApp(type);
     return ts.map(t => t.tag === 'TApp' ? `(${showType(t)})` : showType(t)).join(' ');
   }
   return impossible('showType');
+};
+
+export const eqType = (a: Type, b: Type): boolean => {
+  if (a === b) return true;
+  if (a.tag === 'TCon') return b.tag === 'TCon' && a.name === b.name;
+  if (a.tag === 'TVar') return b.tag === 'TVar' && a.name === b.name;
+  if (a.tag === 'TApp') return b.tag === 'TApp' && eqType(a.left, b.left) && eqType(a.right, b.right);
+  return impossible('eqType');
 };
 
 export const prune = (type: Type): Type => {

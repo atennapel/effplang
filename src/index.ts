@@ -1,12 +1,28 @@
 import { abs, Var, showTerm, app, lets } from './terms';
 import { typecheck, GTEnv } from './inference';
-import { showType, tfun, TVar, tapp, TCon } from './types';
+import { showType, tfun, TVar, tapp, TCon, TFun, TEffExtend } from './types';
+
+const tUnit = TCon('Unit');
+const tBool = TCon('Bool');
+const tState = TCon('State');
+const tFlip = TCon('Flip');
+const tPair = TCon('pair');
+
+const $ = Var;
 
 const genv: GTEnv = {
-  pair: tfun(TVar('a'), TVar('b'), tapp(TCon('Pair'), TVar('a'), TVar('b'))),
+  pair: TFun(TVar('a'), TVar('e1'), TFun(TVar('b'), TVar('e2'), tapp(tPair, TVar('a'), TVar('b')))),
+  unit: tUnit,
+  get: TFun(tUnit, TEffExtend(tState, TVar('e')), tBool),
+  flip: TFun(tUnit, TEffExtend(tFlip, TVar('e')), tBool),
 };
 
-const term = lets([['diag', abs(['x'], app(Var('pair'), Var('x'), Var('x')))]], abs(['x'], app(Var('diag'), app(Var('diag'), Var('x')))));
+const term = app($('pair'), app($('get'), $('unit')), app($('flip'), $('unit')));
 console.log(showTerm(term));
-const ty = typecheck(genv, term);
-console.log(showType(ty));
+const { type, eff } = typecheck(genv, term);
+console.log(`${showType(type)} | ${showType(eff)}`);
+
+/**
+ * opening/closing effects
+ * effects type parameters
+ */
