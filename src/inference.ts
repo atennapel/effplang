@@ -1,4 +1,4 @@
-import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty } from './types';
+import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty, matchTFun, matchTEffExtend, TEffExtend } from './types';
 import { Term, Name, showTerm } from './terms';
 import { impossible, terr } from './util';
 import { List, Nil, lookup, extend, each, toString } from './List';
@@ -14,7 +14,7 @@ const namePart = (name: TVarName): TVarName => {
   if (!d) return name;
   return name.slice(0, -d[0].length);
 };
-const inst = (type: Type, map: { [key: string]: TMeta } = {}): Type => {
+const inst = (type: Type, map: { [key: string]: TMeta } = {}, canOpen: boolean = true): Type => {
   if (type.tag === 'TVar') {
     const name = type.name;
     if (map[name]) return map[name];
@@ -22,9 +22,26 @@ const inst = (type: Type, map: { [key: string]: TMeta } = {}): Type => {
     map[name] = tv;
     return tv;
   }
+  if (type === tEffEmpty)
+    return canOpen ? freshTMeta('e') : type;
+  const m = matchTFun(type);
+  if (m) {
+    const l = inst(m.left, map, false);
+    const r = inst(m.right, map, canOpen);
+    const e = inst(m.effs, map, canOpen);
+    return l === m.left && r === m.right && e === m.effs ? type :
+      TFun(l, e, r);
+  }
+  const ex = matchTEffExtend(type);
+  if (ex) {
+    const e = inst(ex.eff, map, false);
+    const r = inst(ex.rest, map, canOpen);
+    return e === ex.eff && r === ex.rest ? type :
+      TEffExtend(e, r);
+  }
   if (type.tag === 'TApp') {
-    const l = inst(type.left, map);
-    const r = inst(type.right, map);
+    const l = inst(type.left, map, false);
+    const r = inst(type.right, map, false);
     return l === type.left && r === type.right ? type :
       TApp(l, r);
   }
