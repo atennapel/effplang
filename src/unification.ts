@@ -2,7 +2,7 @@ import { Type, showType, TMeta, matchTEffExtend, ITEffExtend, TEffExtend, freshT
 import { terr } from './util';
 
 const rewriteEff = (eff: Type, other: Type): ITEffExtend => {
-  console.log(`rewriteEff ${showType(eff)} in ${showType(other)}`);
+  // console.log(`rewriteEff ${showType(eff)} in ${showType(other)}`);
   const m = matchTEffExtend(other);
   if (m) {
     if (eqType(eff, m.eff)) return m;
@@ -43,7 +43,7 @@ const bindTMeta = (m: TMeta, t: Type): void => {
 };
 
 export const unify = (a: Type, b: Type): void => {
-  console.log(`unify ${showType(a)} ~ ${showType(b)}`);
+  // console.log(`unify ${showType(a)} ~ ${showType(b)}`);
   if (a === b) return;
   if (a.tag === 'TMeta') return bindTMeta(a, b);
   if (b.tag === 'TMeta') return bindTMeta(b, a);

@@ -94,7 +94,7 @@ export const showType = (type: Type): string => {
   }
   const m = matchTFun(type);
   if (m) {
-    return `${isTFun(m.left) ? `(${showType(m.left)})` : showType(m.left)} -> ${m.effs === tEffEmpty ? '' : ` ${showType(m.effs)}`}${showType(m.right)}`;
+    return `${isTFun(m.left) ? `(${showType(m.left)})` : showType(m.left)} -> ${m.effs === tEffEmpty ? '' : `${showType(m.effs)} `}${showType(m.right)}`;
   }
   if (type.tag === 'TApp') {
     const ts = flattenTApp(type);

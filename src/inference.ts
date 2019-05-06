@@ -70,7 +70,7 @@ const gen = (type: Type, lenv: LTEnv): Type => {
 };
 
 export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {
-  console.log(`infer ${showTerm(term)} ${toString(lenv, ([x, t]) => `${x} : ${showType(t)}`)}`);
+  // console.log(`infer ${showTerm(term)} ${toString(lenv, ([x, t]) => `${x} : ${showType(t)}`)}`);
   if (term.tag === 'Var') {
     const ty = lookup(lenv, term.name) || genv[term.name];
     if (!ty) return terr(`undefined var ${term.name}`);

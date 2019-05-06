@@ -17,7 +17,7 @@ const genv: GTEnv = {
   flip: TFun(tUnit, TEffExtend(tFlip, TVar('e')), tBool),
 };
 
-const term = app($('pair'), app($('get'), $('unit')), app($('flip'), $('unit')));
+const term = abs(['x'], app($('get'), $('x')));
 console.log(showTerm(term));
 const { type, eff } = typecheck(genv, term);
 console.log(`${showType(type)} | ${showType(eff)}`);
