@@ -20,12 +20,11 @@ const genv: GTEnv = {
   id: tfun(tv('t'), tv('t')),
 };
 
-const term = app($('id'), app($('pair'), app($('get'), $('unit')), app($('flip'), $('unit'))));
+const term = abs(['x'], $('x'));
 console.log(showTerm(term));
 const { type, eff } = typecheck(genv, term);
 console.log(`${showType(type)} | ${showType(eff)}`);
 
 /**
- * close effects in generalization
  * effects type parameters
  */

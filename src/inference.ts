@@ -1,4 +1,4 @@
-import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty, matchTFun, matchTEffExtend, TEffExtend } from './types';
+import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty, matchTFun, matchTEffExtend, TEffExtend, countTMeta, TMetaCount, flattenTEffExtend, teffExtendFrom } from './types';
 import { Term, Name, showTerm } from './terms';
 import { impossible, terr } from './util';
 import { List, Nil, lookup, extend, each, toString } from './List';
@@ -61,20 +61,32 @@ const genName = (m: TMeta, names: { [key: string]: number } = {}): string => {
 const genR = (
   type: Type,
   free: Free,
+  count: TMetaCount,
   map: { [key: string]: TVar } = {},
   names: { [key: string]: number } = {},
+  canClose: boolean = true,
 ): Type => {
   if (type.tag === 'TMeta') {
-    if (type.type) return genR(type.type, free, map, names);
+    if (type.type) return genR(type.type, free, count, map, names, canClose);
     if (free[type.id]) return type;
     if (map[type.id]) return map[type.id];
     const tv = TVar(genName(type, names));
     map[type.id] = tv;
     return tv;
   }
+  const m = matchTFun(type);
+  if (m) {
+    const l = genR(m.left, free, count, map, names, false);
+    const r = genR(m.right, free, count, map, names, canClose);
+    const e = flattenTEffExtend(m.effs);
+    const es = e.effs.map(t => genR(t, free, count, map, names, false));
+    const et = e.rest.tag === 'TMeta' && canClose && count[e.rest.id] === 1 ? tEffEmpty : e.rest;
+    const ne = teffExtendFrom(es, et);
+    return TFun(l, ne, r);
+  }
   if (type.tag === 'TApp') {
-    const l = genR(type.left, free, map, names);
-    const r = genR(type.right, free, map, names);
+    const l = genR(type.left, free, count, map, names, false);
+    const r = genR(type.right, free, count, map, names, false);
     return l === type.left && r === type.right ? type :
       TApp(l, r);
   }
@@ -83,7 +95,9 @@ const genR = (
 const gen = (type: Type, lenv: LTEnv): Type => {
   // console.log(`gen ${showType(type)}`);
   const free = freeTMetaInLTEnv(lenv);
-  return genR(type, free);
+  const ty = prune(type);
+  const count = countTMeta(ty);
+  return genR(ty, free, count);
 };
 
 export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {

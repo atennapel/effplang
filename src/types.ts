@@ -142,3 +142,18 @@ export const freeTMeta = (type: Type, map: Free = {}): Free => {
   }
   return map;
 };
+
+export type TMetaCount = { [key: string]: number };
+export const countTMeta = (type: Type, map: TMetaCount = {}): TMetaCount => {
+  if (type.tag === 'TMeta') {
+    if (type.type) return countTMeta(type.type, map);
+    map[type.id] = (map[type.id] || 0) + 1;
+    return map;
+  }
+  if (type.tag === 'TApp') {
+    countTMeta(type.left, map);
+    countTMeta(type.right, map);
+    return map;
+  }
+  return map;
+};
