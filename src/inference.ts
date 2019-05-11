@@ -80,7 +80,9 @@ const genR = (
     const r = genR(m.right, free, count, map, names, canClose);
     const e = flattenTEffExtend(m.effs);
     const es = e.effs.map(t => genR(t, free, count, map, names, false));
-    const et = e.rest.tag === 'TMeta' && canClose && count[e.rest.id] === 1 ? tEffEmpty : e.rest;
+    const et = e.rest.tag === 'TMeta' && canClose && count[e.rest.id] === 1 ?
+      tEffEmpty :
+      genR(e.rest, free, count, map, names, canClose);
     const ne = teffExtendFrom(es, et);
     return TFun(l, ne, r);
   }
@@ -136,5 +138,6 @@ export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {
 export const typecheck = (genv: GTEnv, term: Term): { type: Type, eff: Type } => {
   resetTMetaId();
   const { type, eff } = infer(genv, term, Nil);
-  return { type: gen(prune(type), Nil), eff: prune(eff) };
+  const peff = prune(eff);
+  return { type: gen(type, Nil), eff: peff };
 };

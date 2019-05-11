@@ -14,17 +14,24 @@ const tv = TVar;
 
 const genv: GTEnv = {
   pair: tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))),
+  fst: tfun(tapp(tPair, tv('a'), tv('b')), tv('a')),
+  snd: tfun(tapp(tPair, tv('a'), tv('b')), tv('b')),
   unit: tUnit,
   get: TFun(tUnit, TEffExtend(tState, tEffEmpty), tInt),
   flip: TFun(tUnit, TEffExtend(tFlip, tEffEmpty), tBool),
   id: tfun(tv('t'), tv('t')),
 };
 
-const term = abs(['x'], $('x'));
+const term = abs(['f', 'p'], app($('f'), app($('fst'), $('p')), app($('snd'), $('p')))); // uncurry
 console.log(showTerm(term));
 const { type, eff } = typecheck(genv, term);
 console.log(`${showType(type)} | ${showType(eff)}`);
 
 /**
- * effects type parameters
+ * TODO:
+ * - effect closing should use flattenEffs
+ * - effects type parameters
+ * - kinds
+ * - datatypes
+ * - switch to bidirectional system to allow for proper type annotations
  */
