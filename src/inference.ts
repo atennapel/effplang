@@ -6,7 +6,11 @@ import { unify } from './unification';
 
 export interface TypeEff { type: Type, eff: Type };
 
-export type GTEnv = { [key: string]: Type };
+export interface GTEnv {
+  vars: { [key: string]: Type };
+  ops: { [key: string]: { eff: Name, paramty: Type, returnty: Type } };
+  effs: { [key: string]: { tcon: TCon, ops: Name[] } };
+};
 type LTEnv = List<[Name, Type]>;
 
 const namePart = (name: TVarName): TVarName => {
@@ -102,32 +106,45 @@ const gen = (type: Type, lenv: LTEnv): Type => {
   return genR(ty, free, count);
 };
 
+const opsEq = (a: Name[], b: Name[]) => {
+  for (let i = 0, l = a.length; i < l; i++) {
+    if (b.indexOf(a[i]) < 0) return false;
+  }
+  for (let i = 0, l = b.length; i < l; i++) {
+    if (a.indexOf(b[i]) < 0) return false;
+  }
+  return true;
+};
 const inferHandler = (genv: GTEnv, handler: Handler, lenv: LTEnv, ret: TypeEff, ops: Name[] = []): TypeEff => {
   if (handler.tag === 'HOp') {
     if (ops.indexOf(handler.op) >= 0)
       return terr(`duplicate op in handler: ${handler.op}`);
     else ops.push(handler.op);
     const retty = inferHandler(genv, handler.rest, lenv, ret, ops);
-    if (handler.op === 'flip') {
-      const tunit = TCon('Unit');
-      const tbool = TCon('Bool');
-      const { type, eff } = infer(genv, handler.body, lenv);
-      unify(eff, retty.eff);
-      unify(type, TFun(tunit, tEffEmpty, TFun(TFun(tbool, retty.eff, retty.type), retty.eff, retty.type)));
-      return retty;
-    } else terr('only flip is supported');
+    const op = genv.ops[handler.op];
+    if (!op) return terr(`undefined op in handler: ${handler.op}`);
+    const pty = op.paramty;
+    const rty = op.returnty;
+    const newlenv = extend(handler.k, TFun(rty, retty.eff, retty.type), extend(handler.x, pty, lenv));
+    const { type, eff } = infer(genv, handler.body, newlenv);
+    unify(eff, retty.eff);
+    unify(type, retty.type);
     return retty;
   }
   if (handler.tag === 'HReturn') {
-    if ((ops.length === 1 && ops[0] !== 'flip') || ops.length > 1)
-      return terr('only support for flip atm');
-    const { type, eff } = infer(genv, handler.body, lenv);
-    const tv = freshTMeta();
+    const e = ops.length > 0 ? genv.ops[ops[0]].eff : null;
+    if (ops.length > 0) {
+      if (!genv.effs[e as string]) return terr(`undefined eff: ${e}`);
+      const eops = genv.effs[e as string].ops;
+      if (!opsEq(ops, eops))
+        return terr(`expected ops (${eops.join(' ')}) but got (${ops.join(' ')})`);
+    }
+    const newlenv = extend(handler.x, ret.type, lenv);
+    const { type, eff } = infer(genv, handler.body, newlenv);
     const te = freshTMeta();
-    unify(ret.eff, TEffExtend(TCon('Flip'), te));
+    unify(ret.eff, e ? TEffExtend(genv.effs[e].tcon, te) : te);
     unify(te, eff);
-    unify(type, TFun(ret.type, te, tv));
-    return { type: tv, eff: te };
+    return { type, eff: te };
   }
   return impossible('inferHandler');
 };
@@ -135,7 +152,7 @@ const inferHandler = (genv: GTEnv, handler: Handler, lenv: LTEnv, ret: TypeEff, 
 export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {
   // console.log(`infer ${showTerm(term)} ${toString(lenv, ([x, t]) => `${x} : ${showType(t)}`)}`);
   if (term.tag === 'Var') {
-    const ty = lookup(lenv, term.name) || genv[term.name];
+    const ty = lookup(lenv, term.name) || genv.vars[term.name];
     if (!ty) return terr(`undefined var ${term.name}`);
     const i = inst(ty);
     return { type: i, eff: freshTMeta('e') };

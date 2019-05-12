@@ -79,22 +79,27 @@ export type Handler = HOp | HReturn;
 export interface HOp {
   readonly tag: 'HOp';
   readonly op: Name;
+  readonly x: Name;
+  readonly k: Name;
   readonly body: Term;
   readonly rest: Handler;
 }
-export const HOp = (op: Name, body: Term, rest: Handler): HOp =>
-  ({ tag: 'HOp', op, body, rest });
+export const HOp = (op: Name, x: Name, k: Name, body: Term, rest: Handler): HOp =>
+  ({ tag: 'HOp', op, x, k, body, rest });
 
 export interface HReturn {
   readonly tag: 'HReturn';
+  readonly x: Name;
   readonly body: Term;
 }
-export const HReturn = (body: Term): HReturn =>
-  ({ tag: 'HReturn', body });
+export const HReturn = (x: Name, body: Term): HReturn =>
+  ({ tag: 'HReturn', x, body });
 
 export const showHandler = (handler: Handler): string => {
-  if (handler.tag === 'HOp') return `${handler.op} -> ${showTerm(handler.body)}, ${showHandler(handler.rest)}`;
-  if (handler.tag === 'HReturn') return `return -> ${showTerm(handler.body)}`
+  if (handler.tag === 'HOp')
+    return `${handler.op} ${handler.x} ${handler.k} -> ${showTerm(handler.body)}, ${showHandler(handler.rest)}`;
+  if (handler.tag === 'HReturn')
+    return `return ${handler.x} -> ${showTerm(handler.body)}`
   return impossible('showHandler');
 };
 

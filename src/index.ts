@@ -13,18 +13,30 @@ const $ = Var;
 const tv = TVar;
 
 const genv: GTEnv = {
-  pair: tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))),
-  fst: tfun(tapp(tPair, tv('a'), tv('b')), tv('a')),
-  snd: tfun(tapp(tPair, tv('a'), tv('b')), tv('b')),
-  unit: tUnit,
-  get: TFun(tUnit, TEffExtend(tState, tEffEmpty), tInt),
-  flip: TFun(tUnit, TEffExtend(tFlip, tEffEmpty), tBool),
-  id: tfun(tv('t'), tv('t')),
-  true: tBool,
+  effs: {
+    Flip: { tcon: tFlip, ops: ['flip'] },
+    State: { tcon: tState, ops: ['get', 'put'] },
+  },
+  ops: {
+    flip: { eff: 'Flip', paramty: tUnit, returnty: tBool },
+    get: { eff: 'State', paramty: tUnit, returnty: tBool },
+    put: { eff: 'State', paramty: tBool, returnty: tUnit },
+  },
+  vars: {
+    pair: tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))),
+    fst: tfun(tapp(tPair, tv('a'), tv('b')), tv('a')),
+    snd: tfun(tapp(tPair, tv('a'), tv('b')), tv('b')),
+    unit: tUnit,
+    get: TFun(tUnit, TEffExtend(tState, tEffEmpty), tInt),
+    put: TFun(tInt, TEffExtend(tState, tEffEmpty), tUnit),
+    flip: TFun(tUnit, TEffExtend(tFlip, tEffEmpty), tBool),
+    id: tfun(tv('t'), tv('t')),
+    true: tBool,
+  },
 };
 
 // const term = abs(['f', 'p'], app($('f'), app($('fst'), $('p')), app($('snd'), $('p')))); // uncurry
-const term = Handle(app($('flip'), $('unit')), HOp('flip', abs(['x', 'k'], app($('flip'), $('unit'))), HReturn(abs(['x'], $('x')))));
+const term = abs(['t'], Handle(app($('t'), $('unit')), HOp('flip', 'x', 'k', app($('flip'), $('unit')), HReturn('x', $('x')))));
 console.log(showTerm(term));
 const { type, eff } = typecheck(genv, term);
 console.log(`${showType(type)} | ${showType(eff)}`);
