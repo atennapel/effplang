@@ -1,4 +1,4 @@
-import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty, matchTFun, matchTEffExtend, TEffExtend, countTMeta, TMetaCount, flattenTEffExtend, teffExtendFrom } from './types';
+import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty, matchTFun, matchTEffExtend, TEffExtend, countTMeta, TMetaCount, flattenTEffExtend, teffExtendFrom, TCon, tEffExtend } from './types';
 import { Term, Name, showTerm, Handler } from './terms';
 import { impossible, terr } from './util';
 import { List, Nil, lookup, extend, each, toString } from './List';
@@ -104,17 +104,30 @@ const gen = (type: Type, lenv: LTEnv): Type => {
 
 const inferHandler = (genv: GTEnv, handler: Handler, lenv: LTEnv, ret: TypeEff, ops: Name[] = []): TypeEff => {
   if (handler.tag === 'HOp') {
-    if (ops.indexOf(handler.op)) return terr(`duplicate op in handler: ${handler.op}`);
+    if (ops.indexOf(handler.op) >= 0)
+      return terr(`duplicate op in handler: ${handler.op}`);
     else ops.push(handler.op);
-    return inferHandler(genv, handler.rest, lenv, ret, ops);
+    const retty = inferHandler(genv, handler.rest, lenv, ret, ops);
+    if (handler.op === 'flip') {
+      const tunit = TCon('Unit');
+      const tbool = TCon('Bool');
+      const { type, eff } = infer(genv, handler.body, lenv);
+      unify(eff, retty.eff);
+      unify(type, TFun(tunit, tEffEmpty, TFun(TFun(tbool, retty.eff, retty.type), retty.eff, retty.type)));
+      return retty;
+    } else terr('only flip is supported');
+    return retty;
   }
   if (handler.tag === 'HReturn') {
-    console.log(ops);
+    if ((ops.length === 1 && ops[0] !== 'flip') || ops.length > 1)
+      return terr('only support for flip atm');
     const { type, eff } = infer(genv, handler.body, lenv);
     const tv = freshTMeta();
-    unify(type, TFun(ret.type, eff, tv));
-    unify(eff, ret.eff);
-    return { type: tv, eff };
+    const te = freshTMeta();
+    unify(ret.eff, TEffExtend(TCon('Flip'), te));
+    unify(te, eff);
+    unify(type, TFun(ret.type, te, tv));
+    return { type: tv, eff: te };
   }
   return impossible('inferHandler');
 };

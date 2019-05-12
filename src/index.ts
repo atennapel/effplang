@@ -20,10 +20,11 @@ const genv: GTEnv = {
   get: TFun(tUnit, TEffExtend(tState, tEffEmpty), tInt),
   flip: TFun(tUnit, TEffExtend(tFlip, tEffEmpty), tBool),
   id: tfun(tv('t'), tv('t')),
+  true: tBool,
 };
 
 // const term = abs(['f', 'p'], app($('f'), app($('fst'), $('p')), app($('snd'), $('p')))); // uncurry
-const term = Handle(app($('flip'), $('unit')), HOp('flip', abs(['x'], $('x')), HReturn(abs(['x'], $('x')))));
+const term = Handle(app($('flip'), $('unit')), HOp('flip', abs(['x', 'k'], app($('flip'), $('unit'))), HReturn(abs(['x'], $('x')))));
 console.log(showTerm(term));
 const { type, eff } = typecheck(genv, term);
 console.log(`${showType(type)} | ${showType(eff)}`);
