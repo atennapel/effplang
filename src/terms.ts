@@ -7,6 +7,7 @@ export type Term
   | Abs
   | App
   | Let
+  | Handle;
 
 export interface Var {
   readonly tag: 'Var';
@@ -65,6 +66,38 @@ export const Let = (name: Name, val: Term, body: Term): Let =>
 export const lets = (ns: [Name, Term][], body: Term): Term =>
   ns.reduceRight((t, [x, v]) => Let(x, v, t), body);
 
+export interface Handle {
+  readonly tag: 'Handle';
+  readonly term: Term;
+  readonly handler: Handler;
+}
+export const Handle = (term: Term, handler: Handler): Handle =>
+  ({ tag: 'Handle', term, handler });
+
+export type Handler = HOp | HReturn;
+
+export interface HOp {
+  readonly tag: 'HOp';
+  readonly op: Name;
+  readonly body: Term;
+  readonly rest: Handler;
+}
+export const HOp = (op: Name, body: Term, rest: Handler): HOp =>
+  ({ tag: 'HOp', op, body, rest });
+
+export interface HReturn {
+  readonly tag: 'HReturn';
+  readonly body: Term;
+}
+export const HReturn = (body: Term): HReturn =>
+  ({ tag: 'HReturn', body });
+
+export const showHandler = (handler: Handler): string => {
+  if (handler.tag === 'HOp') return `${handler.op} -> ${showTerm(handler.body)}, ${showHandler(handler.rest)}`;
+  if (handler.tag === 'HReturn') return `return -> ${showTerm(handler.body)}`
+  return impossible('showHandler');
+};
+
 export const showTerm = (term: Term): string => {
   if (term.tag === 'Var') return `${term.name}`;
   if (term.tag === 'Abs') {
@@ -77,5 +110,7 @@ export const showTerm = (term: Term): string => {
   }
   if (term.tag === 'Let')
     return `let ${term.name} = ${showTerm(term.val)} in ${showTerm(term.body)}`;
+  if (term.tag === 'Handle')
+    return `handle ${showTerm(term.term)} { ${showHandler(term.handler)} }`;
   return impossible('showTerm');
 };

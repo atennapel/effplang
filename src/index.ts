@@ -1,4 +1,4 @@
-import { abs, Var, showTerm, app, lets } from './terms';
+import { abs, Var, showTerm, app, lets, Handle, HReturn, HOp } from './terms';
 import { typecheck, GTEnv } from './inference';
 import { showType, tfun, TVar, tapp, TCon, TFun, TEffExtend, tEffEmpty } from './types';
 
@@ -22,7 +22,8 @@ const genv: GTEnv = {
   id: tfun(tv('t'), tv('t')),
 };
 
-const term = abs(['f', 'p'], app($('f'), app($('fst'), $('p')), app($('snd'), $('p')))); // uncurry
+// const term = abs(['f', 'p'], app($('f'), app($('fst'), $('p')), app($('snd'), $('p')))); // uncurry
+const term = Handle(app($('flip'), $('unit')), HOp('flip', abs(['x'], $('x')), HReturn(abs(['x'], $('x')))));
 console.log(showTerm(term));
 const { type, eff } = typecheck(genv, term);
 console.log(`${showType(type)} | ${showType(eff)}`);

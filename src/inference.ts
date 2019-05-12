@@ -1,5 +1,5 @@
 import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty, matchTFun, matchTEffExtend, TEffExtend, countTMeta, TMetaCount, flattenTEffExtend, teffExtendFrom } from './types';
-import { Term, Name, showTerm } from './terms';
+import { Term, Name, showTerm, Handler } from './terms';
 import { impossible, terr } from './util';
 import { List, Nil, lookup, extend, each, toString } from './List';
 import { unify } from './unification';
@@ -102,6 +102,23 @@ const gen = (type: Type, lenv: LTEnv): Type => {
   return genR(ty, free, count);
 };
 
+const inferHandler = (genv: GTEnv, handler: Handler, lenv: LTEnv, ret: TypeEff, ops: Name[] = []): TypeEff => {
+  if (handler.tag === 'HOp') {
+    if (ops.indexOf(handler.op)) return terr(`duplicate op in handler: ${handler.op}`);
+    else ops.push(handler.op);
+    return inferHandler(genv, handler.rest, lenv, ret, ops);
+  }
+  if (handler.tag === 'HReturn') {
+    console.log(ops);
+    const { type, eff } = infer(genv, handler.body, lenv);
+    const tv = freshTMeta();
+    unify(type, TFun(ret.type, eff, tv));
+    unify(eff, ret.eff);
+    return { type: tv, eff };
+  }
+  return impossible('inferHandler');
+};
+
 export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {
   // console.log(`infer ${showTerm(term)} ${toString(lenv, ([x, t]) => `${x} : ${showType(t)}`)}`);
   if (term.tag === 'Var') {
@@ -131,6 +148,10 @@ export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {
     const res = infer(genv, term.body, extend(term.name, gty, lenv));
     unify(res.eff, eff);
     return res;
+  }
+  if (term.tag === 'Handle') {
+    const tyeff = infer(genv, term.term, lenv);
+    return inferHandler(genv, term.handler, lenv, tyeff);
   }
   return impossible('infer');
 };
