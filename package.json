@@ -5,14 +5,12 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "runindex": "npm run build && node build/src/index",
-    "start": "node build/src/cli"
+    "start": "npm run build && node build/src/index"
   },
   "author": "Albert ten Napel",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^11.11.3",
-    "typescript": "^3.4"
+    "typescript": "^3.4.5"
   },
   "dependencies": {}
 }

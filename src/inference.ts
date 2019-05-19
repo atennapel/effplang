@@ -1,194 +1,216 @@
-import { Type, prune, TFun, freshTMeta, TMeta, TApp, resetTMetaId, Free, freeTMeta, TVar, showType, TVarName, tEffEmpty, matchTFun, matchTEffExtend, TEffExtend, countTMeta, TMetaCount, flattenTEffExtend, teffExtendFrom, TCon, tEffExtend } from './types';
-import { Term, Name, showTerm, Handler } from './terms';
-import { impossible, terr } from './util';
-import { List, Nil, lookup, extend, each, toString } from './List';
-import { unify } from './unification';
+import { Term, showTerm, Pat, showPat } from './terms';
+import { inferKind } from './kindinference';
+import { kType } from './kinds';
+import { log } from './config';
+import { impossible, terr, resetId, Name } from './util';
+import { List, toArray, each, first, Cons, Nil } from './list';
+import { TEnv } from './env';
+import {
+  Type,
+  showTy,
+  TSkol,
+  TFun,
+  prune,
+  tmetas,
+  quantify,
+  freshTMeta,
+  TMeta,
+} from './types';
+import {
+  unifyTFun,
+  subsCheck,
+  skolemise,
+  skolemCheck,
+  instantiate,
+  subsCheckRho,
+} from './unification';
 
-export interface TypeEff { type: Type, eff: Type };
-
-export interface GTEnv {
-  vars: { [key: string]: Type };
-  ops: { [key: string]: { eff: Name, paramty: Type, returnty: Type } };
-  effs: { [key: string]: { tcon: TCon, ops: Name[] } };
+export type LTEnv = List<[string, Type]>;
+export const extendVar = (lenv: LTEnv, x: Name, t: Type): LTEnv =>
+    Cons([x, t] as [Name, Type], lenv);
+export const extendVars = (env: LTEnv, vs: [Name, Type][]): LTEnv =>
+  vs.reduce((l, kv) => Cons(kv, l), env);
+export const lookupVar = (
+  env: TEnv,
+  lenv: LTEnv,
+  x: Name,
+): Type | null => {
+  const t = first(lenv, ([k, _]) => x === k);
+  if (t) return t[1];
+  return env.global[x] || null;
 };
-type LTEnv = List<[Name, Type]>;
-
-const namePart = (name: TVarName): TVarName => {
-  const d = name.match(/[0-9]$/);
-  if (!d) return name;
-  return name.slice(0, -d[0].length);
-};
-const inst = (type: Type, map: { [key: string]: TMeta } = {}, canOpen: boolean = true): Type => {
-  if (type.tag === 'TVar') {
-    const name = type.name;
-    if (map[name]) return map[name];
-    const tv = freshTMeta(namePart(name));
-    map[name] = tv;
-    return tv;
-  }
-  if (type === tEffEmpty)
-    return canOpen ? freshTMeta('e') : type;
-  const m = matchTFun(type);
-  if (m) {
-    const l = inst(m.left, map, false);
-    const r = inst(m.right, map, canOpen);
-    const e = inst(m.effs, map, canOpen);
-    return l === m.left && r === m.right && e === m.effs ? type :
-      TFun(l, e, r);
-  }
-  const ex = matchTEffExtend(type);
-  if (ex) {
-    const e = inst(ex.eff, map, false);
-    const r = inst(ex.rest, map, canOpen);
-    return e === ex.eff && r === ex.rest ? type :
-      TEffExtend(e, r);
-  }
-  if (type.tag === 'TApp') {
-    const l = inst(type.left, map, false);
-    const r = inst(type.right, map, false);
-    return l === type.left && r === type.right ? type :
-      TApp(l, r);
-  }
-  return type;
+export const skolemCheckEnv = (sk: TSkol[], env: LTEnv): void => {
+  each(env, ([_, t]) => skolemCheck(sk, prune(t)));
 };
 
-const freeTMetaInLTEnv = (lenv: LTEnv, map: Free = {}): Free => {
-  each(lenv, ([_, t]) => freeTMeta(t, map));
-  return map;
-};
-const genName = (m: TMeta, names: { [key: string]: number } = {}): string => {
-  const name = m.name || 't';
-  const i = names[name] || 0;
-  names[name] = i + 1;
-  return `${name}${i === 0 ? '' : `${i - 1}`}`;
-};
-const genR = (
-  type: Type,
-  free: Free,
-  count: TMetaCount,
-  map: { [key: string]: TVar } = {},
-  names: { [key: string]: number } = {},
-  canClose: boolean = true,
-): Type => {
-  if (type.tag === 'TMeta') {
-    if (type.type) return genR(type.type, free, count, map, names, canClose);
-    if (free[type.id]) return type;
-    if (map[type.id]) return map[type.id];
-    const tv = TVar(genName(type, names));
-    map[type.id] = tv;
-    return tv;
-  }
-  const m = matchTFun(type);
-  if (m) {
-    const l = genR(m.left, free, count, map, names, false);
-    const r = genR(m.right, free, count, map, names, canClose);
-    const e = flattenTEffExtend(m.effs);
-    const es = e.effs.map(t => genR(t, free, count, map, names, false));
-    const et = e.rest.tag === 'TMeta' && canClose && count[e.rest.id] === 1 ?
-      tEffEmpty :
-      genR(e.rest, free, count, map, names, canClose);
-    const ne = teffExtendFrom(es, et);
-    return TFun(l, ne, r);
-  }
-  if (type.tag === 'TApp') {
-    const l = genR(type.left, free, count, map, names, false);
-    const r = genR(type.right, free, count, map, names, false);
-    return l === type.left && r === type.right ? type :
-      TApp(l, r);
-  }
-  return type;
-};
-const gen = (type: Type, lenv: LTEnv): Type => {
-  // console.log(`gen ${showType(type)}`);
-  const free = freeTMetaInLTEnv(lenv);
-  const ty = prune(type);
-  const count = countTMeta(ty);
-  return genR(ty, free, count);
+type Expected = Check | Infer;
+interface Check {
+  readonly tag: 'Check';
+  readonly type: Type;
+}
+const Check = (type: Type): Check => ({ tag: 'Check', type });
+interface Infer {
+  readonly tag: 'Infer';
+  type: Type | null;
+}
+const Infer = (): Infer => ({ tag: 'Infer', type: null });
+const showEx = (ex: Expected): string => {
+  if (ex.tag === 'Check') return `Check(${showTy(ex.type)})`;
+  if (ex.tag === 'Infer')
+    return `Infer(${ex.type ? showTy(ex.type) : '...'})`;
+  return impossible('showEx');
 };
 
-const opsEq = (a: Name[], b: Name[]) => {
-  for (let i = 0, l = a.length; i < l; i++) {
-    if (b.indexOf(a[i]) < 0) return false;
-  }
-  for (let i = 0, l = b.length; i < l; i++) {
-    if (a.indexOf(b[i]) < 0) return false;
-  }
-  return true;
+const checkRho = (env: TEnv, lenv: LTEnv, term: Term, ty: Type): void =>
+  tcRho(env, lenv, term, Check(ty));
+const inferRho = (env: TEnv, lenv: LTEnv, term: Term): Type => {
+  const i = Infer();
+  tcRho(env, lenv, term, i);
+  if (!i.type)
+    return terr(`inferRho failed for ${showTerm(term)}`);
+  return i.type;
 };
-const inferHandler = (genv: GTEnv, handler: Handler, lenv: LTEnv, ret: TypeEff, ops: Name[] = []): TypeEff => {
-  if (handler.tag === 'HOp') {
-    if (ops.indexOf(handler.op) >= 0)
-      return terr(`duplicate op in handler: ${handler.op}`);
-    else ops.push(handler.op);
-    const retty = inferHandler(genv, handler.rest, lenv, ret, ops);
-    const op = genv.ops[handler.op];
-    if (!op) return terr(`undefined op in handler: ${handler.op}`);
-    const pty = op.paramty;
-    const rty = op.returnty;
-    const newlenv = extend(handler.k, TFun(rty, retty.eff, retty.type), extend(handler.x, pty, lenv));
-    const { type, eff } = infer(genv, handler.body, newlenv);
-    unify(eff, retty.eff);
-    unify(type, retty.type);
-    return retty;
-  }
-  if (handler.tag === 'HReturn') {
-    const e = ops.length > 0 ? genv.ops[ops[0]].eff : null;
-    if (ops.length > 0) {
-      if (!genv.effs[e as string]) return terr(`undefined eff: ${e}`);
-      const eops = genv.effs[e as string].ops;
-      if (!opsEq(ops, eops))
-        return terr(`expected ops (${eops.join(' ')}) but got (${ops.join(' ')})`);
-    }
-    const newlenv = extend(handler.x, ret.type, lenv);
-    const { type, eff } = infer(genv, handler.body, newlenv);
-    const te = freshTMeta();
-    unify(ret.eff, e ? TEffExtend(genv.effs[e].tcon, te) : te);
-    unify(te, eff);
-    return { type, eff: te };
-  }
-  return impossible('inferHandler');
-};
-
-export const infer = (genv: GTEnv, term: Term, lenv: LTEnv): TypeEff => {
-  // console.log(`infer ${showTerm(term)} ${toString(lenv, ([x, t]) => `${x} : ${showType(t)}`)}`);
+const tcRho = (env: TEnv, lenv: LTEnv, term: Term, ex: Expected): void => {
+  log(() => `tcRho ${showTerm(term)} with ${showEx(ex)}`)
   if (term.tag === 'Var') {
-    const ty = lookup(lenv, term.name) || genv.vars[term.name];
-    if (!ty) return terr(`undefined var ${term.name}`);
-    const i = inst(ty);
-    return { type: i, eff: freshTMeta('e') };
-  }
-  if (term.tag === 'Abs') {
-    const tv = freshTMeta();
-    const { type, eff } = infer(genv, term.body, extend(term.name, tv, lenv));
-    return { type: TFun(tv, eff, type), eff: freshTMeta('e') };
+    const ty = lookupVar(env, lenv, term.name);
+    if (!ty) return terr(`undefined var ${showTerm(term)}`);
+    return instSigma(env, ty, ex);
   }
   if (term.tag === 'App') {
-    const { type: tleft, eff: effleft } = infer(genv, term.left, lenv);
-    const { type: tright, eff: effright } = infer(genv, term.right, lenv);
-    const tv = freshTMeta();
-    unify(effleft, effright);
-    unify(tleft, TFun(tright, effright, tv));
-    return { type: tv, eff: effleft };
+    const ty = inferRho(env, lenv, term.left);
+    const { left: { right: left }, right } = unifyTFun(env, ty);
+    checkSigma(env, lenv, term.right, left);
+    return instSigma(env, right, ex);
+  }
+  if (term.tag === 'Abs') {
+    if (ex.tag === 'Check') {
+      const { left: { right: left }, right } =
+        unifyTFun(env, ex.type);
+      const bs = checkPat(env, term.pat, left);
+      const nenv = extendVars(lenv, bs);
+      return checkRho(env, nenv, term.body, right);
+    } else if (ex.tag === 'Infer') {
+      const [bs, ty] = inferPat(env, term.pat);
+      const nenv = extendVars(lenv, bs);
+      const bty = inferRho(env, nenv, term.body);
+      ex.type = TFun(ty, bty);
+      return;
+    }
   }
   if (term.tag === 'Let') {
-    const tv = freshTMeta();
-    const { type, eff } = infer(genv, term.val, extend(term.name, tv, lenv));
-    unify(tv, type);
-    const gty = gen(type, lenv);
-    const res = infer(genv, term.body, extend(term.name, gty, lenv));
-    unify(res.eff, eff);
-    return res;
+    const ty = inferSigma(env, lenv, term.val);
+    if (term.pat.tag === 'PVar') {
+      const nenv = extendVar(lenv, term.pat.name, ty);
+      return tcRho(env, nenv, term.body, ex);
+    } else {
+      const vars = checkPatSigma(env, term.pat, ty);
+      const nenv = extendVars(lenv, vars);
+      return tcRho(env, nenv, term.body, ex);
+    }
   }
-  if (term.tag === 'Handle') {
-    const tyeff = infer(genv, term.term, lenv);
-    return inferHandler(genv, term.handler, lenv, tyeff);
+  if (term.tag === 'Ann') {
+    const type = inferKind(env, term.type);
+    checkSigma(env, lenv, term.term, type);
+    return instSigma(env, type, ex);
   }
-  return impossible('infer');
+  if (term.tag === 'Hole') {
+    const ty = freshTMeta(kType);
+    holes.push([term.name, ty, lenv]);
+    instSigma(env, ty, ex);
+    return;
+  }
+  return impossible('tcRho');
 };
 
-export const typecheck = (genv: GTEnv, term: Term): { type: Type, eff: Type } => {
-  resetTMetaId();
-  const { type, eff } = infer(genv, term, Nil);
-  const peff = prune(eff);
-  return { type: gen(type, Nil), eff: peff };
+const checkPatSigma = (
+  env: TEnv,
+  pat: Pat,
+  ty: Type,
+): [Name, Type][] => {
+  const rho = instantiate(ty);
+  return checkPat(env, pat, rho);
+};
+
+const checkPat = (env: TEnv, pat: Pat, ty: Type): [Name, Type][] =>
+  tcPat(env, pat, Check(ty));
+const inferPat = (env: TEnv, pat: Pat): [[Name, Type][], Type] => {
+  const i = Infer();
+  const bs = tcPat(env, pat, i);
+  if (!i.type)
+    return terr(`inferPat failed for ${showPat(pat)}`);
+  return [bs, i.type];
+};
+const tcPat = (
+  env: TEnv,
+  pat: Pat,
+  ex: Expected
+): [Name, Type][] => {
+  if (pat.tag === 'PWildcard') {
+    if (ex.tag === 'Infer') ex.type = freshTMeta(kType);
+    return [];
+  }
+  if (pat.tag === 'PVar') {
+    if (ex.tag === 'Check') return [[pat.name, ex.type]];
+    const ty = freshTMeta(kType);
+    ex.type = ty;
+    return [[pat.name, ty]];
+  }
+  if (pat.tag === 'PAnn') {
+    const ty = inferKind(env, pat.type);
+    const bs = checkPat(env, pat.pat, ty);
+    instPatSigma(env, ty, ex);
+    return bs;
+  }
+  return impossible('tcPat');
+};
+
+const instPatSigma = (env: TEnv, ty: Type, ex: Expected): void => {
+  if (ex.tag === 'Check')
+    return subsCheck(env, ex.type, ty);
+  ex.type = ty;
+};
+
+const tmetasEnv = (
+  env: LTEnv,
+  free: TMeta[] = [],
+  tms: TMeta[] = [],
+): TMeta[] => {
+  each(env, ([_, t]) => tmetas(prune(t), free, tms));
+  return tms;
+};
+
+const inferSigma = (env: TEnv, lenv: LTEnv, term: Term): Type => {
+  const ty = inferRho(env, lenv, term);
+  const etms = tmetasEnv(lenv);
+  const tms = tmetas(prune(ty), etms);
+  return quantify(tms, ty);
+};
+
+const checkSigma = (env: TEnv, lenv: LTEnv, term: Term, ty: Type): void => {
+  const sk: TSkol[] = [];
+  const rho = skolemise(ty, sk);
+  checkRho(env, lenv, term, rho);
+  skolemCheck(sk, prune(ty));
+  skolemCheckEnv(sk, lenv);
+};
+
+const instSigma = (env: TEnv, ty: Type, ex: Expected): void => {
+  if (ex.tag === 'Check')
+    return subsCheckRho(env, ty, ex.type);
+  ex.type = instantiate(ty);
+};
+
+let holes: [string, Type, List<[string, Type]>][];
+export const infer = (env: TEnv, term: Term, lenv: LTEnv = Nil): Type => {
+  log(() => `infer ${showTerm(term)}`);
+  resetId();
+  holes = [];
+  const nty = inferSigma(env, lenv, term);
+  const ty = prune(nty);
+  if (holes.length > 0)
+    return terr(`${showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) =>
+      `_${n} : ${showTy(prune(t))}\n${toArray(e, ([x, t]) =>
+        `${x} : ${showTy(prune(t))}`).join('\n')}`).join('\n\n')}`);
+  return ty;
 };

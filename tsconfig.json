@@ -10,7 +10,7 @@
     "strictFunctionTypes": true,
     "strictPropertyInitialization": true,
     "strictNullChecks": true,
-    "types": ["node"],
+    "types": [],
     "typeRoots": [ "node_modules/@types" ]
   },
   "include:": [

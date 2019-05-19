@@ -1,39 +1,19 @@
-import { impossible } from './util';
-
-export type Name = string;
+import { Name, impossible } from './util';
+import { Type, showTy } from './types';
 
 export type Term
   = Var
-  | Abs
   | App
+  | Abs
   | Let
-  | Handle;
+  | Ann
+  | Hole;
 
 export interface Var {
   readonly tag: 'Var';
   readonly name: Name;
 }
-export const Var = (name: Name): Var =>
-  ({ tag: 'Var', name });
-
-export interface Abs {
-  readonly tag: 'Abs';
-  readonly name: Name;
-  readonly body: Term;
-}
-export const Abs = (name: Name, body: Term): Abs =>
-  ({ tag: 'Abs', name, body });
-export const abs = (ns: Name[], body: Term): Term =>
-  ns.reduceRight((t, n) => Abs(n, t), body);
-export const flattenAbs = (term: Term): { ns: Name[], body: Term } => {
-  let c = term;
-  const ns: Name[] = [];
-  while (c.tag === 'Abs') {
-    ns.push(c.name);
-    c = c.body;
-  }
-  return { ns, body: c };
-};
+export const Var = (name: Name): Var => ({ tag: 'Var', name });
 
 export interface App {
   readonly tag: 'App';
@@ -42,80 +22,86 @@ export interface App {
 }
 export const App = (left: Term, right: Term): App =>
   ({ tag: 'App', left, right });
-export const appFrom = (ts: Term[]): Term => ts.reduce(App);
-export const app = (...ts: Term[]): Term => appFrom(ts);
-export const flattenApp = (type: Term): Term[] => {
-  let c = type;
-  const r: Term[] = [];
-  while (c.tag === 'App') {
-    r.push(c.right);
-    c = c.left;
-  }
-  r.push(c);
-  return r.reverse();
-};
+export const appFrom = (ts: Term[]): Term =>
+  ts.reduce(App);
+
+export interface Abs {
+  readonly tag: 'Abs';
+  readonly pat: Pat;
+  readonly body: Term;
+}
+export const Abs = (pat: Pat, body: Term): Abs =>
+  ({ tag: 'Abs', pat, body });
+export const abs = (ns: Pat[], body: Term) =>
+  ns.reduceRight((x, y) => Abs(y, x), body);
 
 export interface Let {
   readonly tag: 'Let';
-  readonly name: Name;
+  readonly pat: Pat;
   readonly val: Term;
   readonly body: Term;
 }
-export const Let = (name: Name, val: Term, body: Term): Let =>
-  ({ tag: 'Let', name, val, body });
-export const lets = (ns: [Name, Term][], body: Term): Term =>
-  ns.reduceRight((t, [x, v]) => Let(x, v, t), body);
+export const Let = (pat: Pat, val: Term, body: Term): Let =>
+  ({ tag: 'Let', pat, val, body });
 
-export interface Handle {
-  readonly tag: 'Handle';
+export interface Ann {
+  readonly tag: 'Ann';
   readonly term: Term;
-  readonly handler: Handler;
+  readonly type: Type;
 }
-export const Handle = (term: Term, handler: Handler): Handle =>
-  ({ tag: 'Handle', term, handler });
+export const Ann = (term: Term, type: Type): Ann =>
+  ({ tag: 'Ann', term, type });
 
-export type Handler = HOp | HReturn;
-
-export interface HOp {
-  readonly tag: 'HOp';
-  readonly op: Name;
-  readonly x: Name;
-  readonly k: Name;
-  readonly body: Term;
-  readonly rest: Handler;
+export interface Hole {
+  readonly tag: 'Hole';
+  readonly name: string;
 }
-export const HOp = (op: Name, x: Name, k: Name, body: Term, rest: Handler): HOp =>
-  ({ tag: 'HOp', op, x, k, body, rest });
+export const Hole = (name: string): Hole =>
+  ({ tag: 'Hole', name });
 
-export interface HReturn {
-  readonly tag: 'HReturn';
-  readonly x: Name;
-  readonly body: Term;
+export type Pat
+  = PVar
+  | PWildcard
+  | PAnn;
+
+export interface PVar {
+  readonly tag: 'PVar';
+  readonly name: Name;
 }
-export const HReturn = (x: Name, body: Term): HReturn =>
-  ({ tag: 'HReturn', x, body });
+export const PVar = (name: Name): PVar => ({ tag: 'PVar', name });
 
-export const showHandler = (handler: Handler): string => {
-  if (handler.tag === 'HOp')
-    return `${handler.op} ${handler.x} ${handler.k} -> ${showTerm(handler.body)}, ${showHandler(handler.rest)}`;
-  if (handler.tag === 'HReturn')
-    return `return ${handler.x} -> ${showTerm(handler.body)}`
-  return impossible('showHandler');
+export interface PWildcard {
+  readonly tag: 'PWildcard';
+}
+export const PWildcard: PWildcard = ({ tag: 'PWildcard' });
+
+export interface PAnn {
+  readonly tag: 'PAnn';
+  readonly pat: Pat;
+  readonly type: Type;
+}
+export const PAnn = (pat: Pat, type: Type): PAnn =>
+  ({ tag: 'PAnn', pat, type });
+
+export const showPat = (p: Pat): string => {
+  if (p.tag === 'PVar') return p.name;
+  if (p.tag === 'PWildcard') return '_';
+  if (p.tag === 'PAnn')
+    return `(${showPat(p.pat)} : ${showTy(p.type)})`;
+  return impossible('showPat');
 };
 
-export const showTerm = (term: Term): string => {
-  if (term.tag === 'Var') return `${term.name}`;
-  if (term.tag === 'Abs') {
-    const fl = flattenAbs(term);
-    return `\\${fl.ns.join(' ')} -> ${showTerm(fl.body)}`;
-  }
-  if (term.tag === 'App') {
-    const ts = flattenApp(term);
-    return ts.map(t => t.tag === 'Abs' || t.tag === 'App' || t.tag === 'Let' ? `(${showTerm(t)})` : showTerm(t)).join(' ');
-  }
-  if (term.tag === 'Let')
-    return `let ${term.name} = ${showTerm(term.val)} in ${showTerm(term.body)}`;
-  if (term.tag === 'Handle')
-    return `handle ${showTerm(term.term)} { ${showHandler(term.handler)} }`;
+export const showTerm = (t: Term): string => {
+  if (t.tag === 'Var') return t.name;
+  if (t.tag === 'Abs')
+    return `(\\${showPat(t.pat)} -> ${showTerm(t.body)})`;
+  if (t.tag === 'App')
+    return `(${showTerm(t.left)} ${showTerm(t.right)})`;
+  if (t.tag === 'Ann')
+    return `(${showTerm(t.term)} : ${showTy(t.type)})`;
+  if (t.tag === 'Let')
+    return `(let ${showPat(t.pat)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
+  if (t.tag === 'Hole')
+    return `_${t.name}`;
   return impossible('showTerm');
 };
