@@ -1,4 +1,4 @@
-import { Var, Term, App, appFrom, abs, PVar } from "./terms";
+import { Var, Term, App, appFrom, abs, PVar, Hole } from "./terms";
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -69,6 +69,11 @@ const parseExpr = (ts: string[]): Term | null => {
     if (args.length === 0) return err(`no args after \\`);
     const body = parseAppTop(ts);
     return abs(args.map(PVar), body)
+  }
+  if (skipSymbol(ts, '_')) {
+    const name = parseName(ts);
+    if (!name) return err(`expected name after hole _`);
+    return Hole(name);
   }
   return parseId(ts);
 };
