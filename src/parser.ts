@@ -1,35 +1,23 @@
-// AST
-const Var = name => ({ tag: 'Var', name });
-const App = (left, right) => ({ tag: 'App', left, right });
-const app = es => es.reduce(App);
-const Abs = (name, body) => ({ tag: 'Abs', name, body });
-const abs = (ns, body) => ns.reduceRight((x, y) => Abs(y, x), body);
+import { Var, Term, App, appFrom, abs, PVar } from "./terms";
 
-const showTerm = t => {
-  if (t.tag === 'Var') return t.name;
-  if (t.tag === 'App') return `(${showTerm(t.left)} ${showTerm(t.right)})`;
-  if (t.tag === 'Abs') return `(\\${t.name} -> ${showTerm(t.body)})`;
-}
+const err = (msg: string) => { throw new SyntaxError(msg) };
 
-// parsing
-function err(msg) { throw new SyntaxError(msg) }
-
-function skipWhitespace(ts) {
+const skipWhitespace = (ts: string[]): void => {
   const l = ts.length - 1;
   if (l < 0) return;
   let i = l;
   while (i >= 0 && /\s/.test(ts[i])) i--;
   if (i < l) ts.splice(i + 1);
-}
+};
 
-function skipSymbol(ts, sym) {
+const skipSymbol = (ts: string[], sym: string): boolean => {
   const l = ts.length - 1;
   if (l < 0) return false;
   if (ts[l] === sym) { ts.pop(); return true }
   return false;
-}
+};
 
-function skipSymbol2(ts, sym) {
+const skipSymbol2 = (ts: string[], sym: string): boolean => {
   const l = ts.length - 1;
   if (l < 1) return false;
   if (ts[l] === sym[0] && ts[l - 1] === sym[1]) {
@@ -37,23 +25,23 @@ function skipSymbol2(ts, sym) {
     return true;
   }
   return false;
-}
+};
 
-function parseName(ts) {
+const parseName = (ts: string[]): string | null => {
   const l = ts.length - 1;
   if (l < 0) return null;
   let i = l;
   while (i >= 0 && /[a-z]/i.test(ts[i])) i--;
   if (i === l) return null;
   return ts.splice(i + 1).reverse().join('');
-}
-function parseId(ts) {
+};
+const parseId = (ts: string[]): Var | null => {
   const x = parseName(ts);
-  if (!x) return x;
+  if (!x) return null;
   return Var(x);
-}
+};
 
-function parseExpr(ts) {
+const parseExpr = (ts: string[]): Term | null => {
   skipWhitespace(ts);
   if (skipSymbol(ts, '(')) {
     const es = [];
@@ -66,7 +54,7 @@ function parseExpr(ts) {
       es.push(expr);
     }
     if (es.length === 0) return err(`empty app`);
-    return app(es);
+    return appFrom(es);
   }
   if (skipSymbol(ts, '\\')) {
     const args = [];
@@ -80,12 +68,12 @@ function parseExpr(ts) {
     }
     if (args.length === 0) return err(`no args after \\`);
     const body = parseAppTop(ts);
-    return abs(args, body)
+    return abs(args.map(PVar), body)
   }
   return parseId(ts);
-}
+};
 
-function parseAppTop(ts) {
+const parseAppTop = (ts: string[]): Term => {
   skipWhitespace(ts);
   if (ts.length === 0) return err(`empty app`);
   let expr = parseExpr(ts);
@@ -98,18 +86,11 @@ function parseAppTop(ts) {
   }
 }
 
-function parse(ts) {
+const parseTermTop = (ts: string[]): Term => {
   skipWhitespace(ts);
   return parseAppTop(ts);
-}
+};
 
-function start(str) {
-  return parse(str.split('').reverse());
-}
-
-// testing
-const s = 'f  g (\\ a b c -> x f)';
-console.log(s);
-const t = start(s);
-console.log(t);
-console.log(showTerm(t));
+export const parseTerm = (str: string): Term => {
+  return parseTermTop(str.split('').reverse());
+};
