@@ -1,4 +1,5 @@
 import { Var, Term, App, appFrom, abs, PVar, Hole, Pat, PWildcard } from "./terms";
+import { Type, TApp, TVar, TCon, tappFrom } from "./types";
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -98,7 +99,7 @@ const parseAppTop = (ts: string[]): Term => {
     if (!expr2) return expr;
     expr = App(expr, expr2);
   }
-}
+};
 
 const parseTermTop = (ts: string[]): Term => {
   skipWhitespace(ts);
@@ -107,4 +108,61 @@ const parseTermTop = (ts: string[]): Term => {
 
 export const parseTerm = (str: string): Term => {
   return parseTermTop(str.split('').reverse());
+};
+
+// types
+const parseTVar = (ts: string[]): TVar | null => {
+  const x = parseName(ts);
+  if (!x || /[A-Z]/.test(x[0])) return null;
+  return TVar(x);
+};
+const parseTCon = (ts: string[]): TCon | null => {
+  const x = parseName(ts);
+  if (!x || /[a-z]/.test(x[0])) return null;
+  return TCon(x);
+};
+const parseTypeId = (ts: string[]): TVar | TCon | null => {
+  const x = parseName(ts);
+  if (!x) return null;
+  return /[A-Z]/.test(x[0]) ? TCon(x) : TVar(x);
+};
+
+const parseTypeR = (ts: string[]): Type | null => {
+  skipWhitespace(ts);
+  if (skipSymbol(ts, '(')) {
+    const es: Type[] = [];
+    while (true) {
+      skipWhitespace(ts);
+      if (ts.length === 0) return err(`unclosed (`);
+      if (skipSymbol(ts, ')')) break;
+      const expr = parseTypeR(ts);
+      if (!expr) return err(`failed to parse expr in application`);
+      es.push(expr);
+    }
+    if (es.length === 0) return err(`empty app`);
+    return tappFrom(es);
+  }
+  return parseTypeId(ts);
+};
+
+const parseTAppTop = (ts: string[]): Type => {
+  skipWhitespace(ts);
+  if (ts.length === 0) return err(`empty tapp`);
+  let expr = parseTypeR(ts);
+  if (!expr) return err(`expected identifier in parseTAppTop but got: ${ts[ts.length - 1]}`);
+  while (true) {
+    skipWhitespace(ts);
+    const expr2 = parseTypeR(ts);
+    if (!expr2) return expr;
+    expr = TApp(expr, expr2);
+  }
+};
+
+const parseTypeTop = (ts: string[]): Type => {
+  skipWhitespace(ts);
+  return parseTAppTop(ts);
+};
+
+export const parseType = (str: string): Type => {
+  return parseTypeTop(str.split('').reverse());
 };

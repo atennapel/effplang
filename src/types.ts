@@ -40,6 +40,8 @@ export const TApp = (left: Type, right: Type): TApp =>
   ({ tag: 'TApp', left, right });
 export const tappFrom = (ts: Type[]): Type =>
   ts.reduce(TApp);
+export const tapp = (...ts: Type[]): Type =>
+  tappFrom(ts);
 
 export interface TCon {
   readonly tag: 'TCon';
@@ -101,6 +103,8 @@ export const isTFun = (ty: Type): ty is TFun =>
         ty.left.left.name === tFun.name));
 export const tfunFrom = (ts: Type[]): Type =>
   ts.reduceRight((x, y) => TFun(y, x));
+export const tfun = (...ts: Type[]): Type =>
+  tfunFrom(ts);
 
 export const flattenTFun = (t: Type): Type[] => {
   let c = t;
