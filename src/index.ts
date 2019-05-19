@@ -10,3 +10,14 @@ const term = parseTerm(s);
 console.log(showTerm(term));
 const ty = infer(env, term);
 console.log(showTy(ty));
+
+/**
+ * TODO:
+ * - parser:
+ *  - kinds
+ *  - kinds in forall
+ *  - type/kind arrows
+ *  - let
+ * - effect rows
+ * - record rows
+ */
