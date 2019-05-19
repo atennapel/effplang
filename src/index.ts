@@ -14,8 +14,6 @@ console.log(showTy(ty));
 /**
  * TODO:
  * - parser:
- *  - kinds
- *  - kinds in forall
  *  - type/kind arrows
  *  - let
  * - effect rows

@@ -4,6 +4,7 @@ import { infer } from './inference';
 import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
+import { setConfig } from './config';
 
 const tv = TVar;
 
@@ -43,6 +44,8 @@ tenv.global.Cons = tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')), t
 tenv.global.caseList = tforall([['t', kType], ['r', kType]], tfun(tapp(tList, tv('t')), tv('r'), tfun(tv('t'), tapp(tList, tv('t')), tv('r')), tv('r')));
 
 tenv.global.fix = tforall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t')));
+
+setConfig({ showKinds: true });
 
 if (process.argv[2]) {
   try {
