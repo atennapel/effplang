@@ -9,6 +9,8 @@ const tv = TVar;
 
 const tVoid = TCon('Void');
 const tUnit = TCon('Unit');
+const tPair = TCon('Pair');
+const tSum = TCon('Sum');
 const tBool = TCon('Bool');
 const tList = TCon('List');
 
@@ -19,6 +21,16 @@ tenv.global.void = tforall([['t', kType]], tfun(tVoid, tv('t')));
 
 tenv.tcons.Unit = kType;
 tenv.global.Unit = tUnit;
+
+tenv.tcons.Pair = kfun(kType, kType, kType);
+tenv.global.pair = tforall([['a', kType], ['b', kType]], tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))));
+tenv.global.fst = tforall([['a', kType], ['b', kType]], tfun(tapp(tPair, tv('a'), tv('b')), tv('a')));
+tenv.global.snd = tforall([['a', kType], ['b', kType]], tfun(tapp(tPair, tv('a'), tv('b')), tv('b')));
+
+tenv.tcons.Sum = kfun(kType, kType, kType);
+tenv.global.inl = tforall([['a', kType], ['b', kType]], tfun(tv('a'), tapp(tSum, tv('a'), tv('b'))));
+tenv.global.inr = tforall([['a', kType], ['b', kType]], tfun(tv('b'), tapp(tSum, tv('a'), tv('b'))));
+tenv.global.caseSum = tforall([['a', kType], ['b', kType], ['r', kType]], tfun(tapp(tSum, tv('a'), tv('b')), tfun(tv('a'), tv('r')), tfun(tv('b'), tv('r')), tv('r')));
 
 tenv.tcons.Bool = kType;
 tenv.global.True = tBool;
