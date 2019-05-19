@@ -1,4 +1,4 @@
-import { Var, Term, App, appFrom, abs, PVar, Hole } from "./terms";
+import { Var, Term, App, appFrom, abs, PVar, Hole, Pat, PWildcard } from "./terms";
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -41,6 +41,17 @@ const parseId = (ts: string[]): Var | null => {
   return Var(x);
 };
 
+const parsePat = (ts: string[]): Pat => {
+  if (skipSymbol(ts, '_')) {
+    if (skipSymbol(ts, '_')) return err(`_ after _ in pattern`);
+    if (parseName(ts)) return err(`hole not allowed in pattern`);
+    return PWildcard;
+  }
+  const x = parseName(ts);
+  if (!x) return err(`expected a pattern`);
+  return PVar(x);
+};
+
 const parseExpr = (ts: string[]): Term | null => {
   skipWhitespace(ts);
   if (skipSymbol(ts, '(')) {
@@ -57,18 +68,16 @@ const parseExpr = (ts: string[]): Term | null => {
     return appFrom(es);
   }
   if (skipSymbol(ts, '\\')) {
-    const args = [];
+    const args: Pat[] = [];
     while (true) {
       skipWhitespace(ts);
       if (ts.length === 0) return err(`no -> after \\`);
       if (skipSymbol2(ts, '->')) break;
-      const id = parseName(ts);
-      if (!id) return err(`failed to parse id after \\`);
-      args.push(id);
+      args.push(parsePat(ts));
     }
     if (args.length === 0) return err(`no args after \\`);
     const body = parseAppTop(ts);
-    return abs(args.map(PVar), body)
+    return abs(args, body)
   }
   if (skipSymbol(ts, '_')) {
     const name = parseName(ts);
