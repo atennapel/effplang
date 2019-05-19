@@ -14,7 +14,6 @@ console.log(showTy(ty));
 /**
  * TODO:
  * - parser:
- *  - type arrows
  *  - let
  * - effect rows
  * - record rows

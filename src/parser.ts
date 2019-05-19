@@ -18,6 +18,8 @@ import {
   TCon,
   tappFrom,
   tforall,
+  tfunFrom,
+  tFun,
 } from './types';
 import { KCon, Kind, kfunFrom } from './kinds';
 import { Name } from './util';
@@ -227,7 +229,7 @@ const parseTypeR = (ts: string[]): Type | null => {
       skipWhitespace(ts);
       if (ts.length === 0) return err(`unclosed ( in type`);
       if (skipSymbol(ts, ')')) break;
-      const expr = parseTypeR(ts);
+      const expr = parseTypeTop(ts);
       if (!expr) return err(`failed to parse type in type application`);
       es.push(expr);
     }
@@ -247,7 +249,7 @@ const parseTypeR = (ts: string[]): Type | null => {
         args.push(arg[i]);
     }
     if (args.length === 0) return err(`no args after forall`);
-    const body = parseTAppTop(ts);
+    const body = parseTypeTop(ts);
     return tforall(args, body);
   }
   return /[A-Z]/.test(name[0]) ? TCon(name) : TVar(name);
@@ -260,17 +262,37 @@ const parseTAppTop = (ts: string[]): Type => {
   if (!expr) return err(`expected identifier in parseTAppTop but got: ${ts[ts.length - 1]}`);
   while (true) {
     skipWhitespace(ts);
+    if (ts[ts.length - 1] === ')') break;
+    if (ts[ts.length - 1] === '-' && ts[ts.length - 2] === '>') break;
     const expr2 = parseTypeR(ts);
-    if (!expr2) return expr;
+    if (!expr2) break;
     expr = TApp(expr, expr2);
   }
+  return expr;
 };
 
 const parseTypeTop = (ts: string[]): Type => {
-  skipWhitespace(ts);
-  const ty = parseTAppTop(ts);
-  // if (ts.length > 0) return err(`parse type premature end`);
-  return ty;
+  const tys: Type[] = [];
+  let funLast = false;
+  while (true) {
+    skipWhitespace(ts);
+    if (ts.length === 0) break;
+    if (ts[ts.length - 1] === ')') break;
+    if (skipSymbol2(ts, '->')) {
+      funLast = true;
+      if (tys.length === 0) return err(`nothing before ->`);
+      continue;
+    }
+    const ty = parseTAppTop(ts);
+    tys.push(ty);
+    funLast = false;
+  }
+  const tf = tfunFrom(tys);
+  if (funLast) {
+    if (tys.length === 0) return tFun;
+    return TApp(tFun, tf);
+  }
+  return tf;
 };
 
 export const parseType = (str: string): Type => {
