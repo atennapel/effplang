@@ -19,7 +19,7 @@ import {
   tappFrom,
   tforall,
 } from './types';
-import { KCon, Kind } from './kinds';
+import { KCon, Kind, kfunFrom } from './kinds';
 import { Name } from './util';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
@@ -292,8 +292,7 @@ const parseKindR = (ts: string[]): Kind | null => {
       skipWhitespace(ts);
       if (ts.length === 0) return err(`unclosed ( in kind`);
       if (skipSymbol(ts, ')')) break;
-      const expr = parseKindR(ts);
-      if (!expr) return err(`failed to parse kind in kind application`);
+      const expr = parseKindTop(ts);
       es.push(expr);
     }
     if (es.length === 0) return err(`empty kind app`);
@@ -307,8 +306,18 @@ const parseKindTop = (ts: string[]): Kind => {
   skipWhitespace(ts);
   const ki = parseKindR(ts);
   if (!ki) return err(`expected kind`);
-  // if (ts.length > 0) return err(`parse kind premature end`);
-  return ki as Kind;
+  const ks: Kind[] = [ki];
+  while (true) {
+    skipWhitespace(ts);
+    if (ts.length === 0) break;
+    if (ts[ts.length - 1] === ')') break;
+    if (skipSymbol2(ts, '->')) {
+      const ki = parseKindR(ts);
+      if (!ki) return err(`expected kind after ->`);
+      ks.push(ki);
+    } else return err(`expected -> in kind`);
+  }
+  return kfunFrom(ks);
 };
 
 export const parseKind = (str: string): Kind => {
