@@ -5,8 +5,9 @@ import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
 import { setConfig } from './config';
-import { termToComp, showCComp } from './core';
-import { runToVal, showMVal } from './machine';
+import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar } from './core';
+import { runToVal, showMVal, MGEnv, MFloat, MClos } from './machine';
+import { Nil } from './List';
 
 const tv = TVar;
 
@@ -16,6 +17,7 @@ const tPair = TCon('Pair');
 const tSum = TCon('Sum');
 const tBool = TCon('Bool');
 const tList = TCon('List');
+const tFloat = TCon('Float');
 
 const tenv = getInitialEnv();
 
@@ -47,6 +49,17 @@ tenv.global.caseList = tforall([['t', kType], ['r', kType]], tfun(tapp(tList, tv
 
 tenv.global.fix = tforall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t')));
 
+tenv.tcons.Float = kType;
+tenv.global.zero = tFloat;
+tenv.global.one = tFloat;
+tenv.global.add = tfun(tFloat, tFloat, tFloat);
+
+const genv: MGEnv = {
+  zero: MFloat(0),
+  one: MFloat(1),
+  add: MClos(CVAbs('x', CCRet(CVAbs('y', CCAdd(CVVar('x'), CVVar('y'))))), Nil),
+};
+
 setConfig({ showKinds: true });
 
 if (process.argv[2]) {
@@ -58,7 +71,7 @@ if (process.argv[2]) {
     console.log(showTy(ty));
     const core = termToComp(term);
     console.log(showCComp(core));
-    const rest = runToVal(core);
+    const rest = runToVal(genv, core);
     console.log(showMVal(rest));
   } catch (err) {
     console.error(err);
@@ -77,7 +90,7 @@ if (process.argv[2]) {
         console.log(showTy(ty));
         const core = termToComp(term);
         console.log(showCComp(core));
-        const rest = runToVal(core);
+        const rest = runToVal(genv, core);
         console.log(showMVal(rest));
       } catch (err) {
         console.error(`${err}`);

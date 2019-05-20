@@ -1,8 +1,8 @@
 import { Name, impossible, freshId } from './util';
 import { Term, Pat } from './terms';
 
-export type CVal = CVVar | CVAbs;
-export type CComp = CCRet | CCApp | CCSeq;
+export type CVal = CVVar | CVAbs | CVFloat;
+export type CComp = CCRet | CCApp | CCSeq | CCAdd;
 
 export interface CVVar {
   readonly tag: 'CVVar';
@@ -18,6 +18,13 @@ export interface CVAbs {
 }
 export const CVAbs = (name: Name, body: CComp): CVAbs =>
   ({ tag: 'CVAbs', name, body });
+
+export interface CVFloat {
+  readonly tag: 'CVFloat';
+  readonly val: number;
+}
+export const CVFloat = (val: number): CVFloat =>
+  ({ tag: 'CVFloat', val });
 
 export interface CCRet {
   readonly tag: 'CCRet';
@@ -47,18 +54,29 @@ export const CCSeq = (
 ): CCSeq =>
   ({ tag: 'CCSeq', name, val, body });
 
+export interface CCAdd {
+  readonly tag: 'CCAdd';
+  readonly left: CVal;
+  readonly right: CVal;
+}
+export const CCAdd = (left: CVal, right: CVal): CCAdd =>
+  ({ tag: 'CCAdd', left, right });
+
 export const showCVal = (c: CVal): string => {
   if (c.tag === 'CVVar') return c.name;
   if (c.tag === 'CVAbs')
-    return `\\${c.name} -> ${showCComp(c.body)}`;
+    return `(\\${c.name} -> ${showCComp(c.body)})`;
+  if (c.tag === 'CVFloat') return `${c.val}`;
   return impossible('showCVal');
 };
 export const showCComp = (c: CComp): string => {
-  if (c.tag === 'CCRet') return `return ${showCVal(c.val)}`;
+  if (c.tag === 'CCRet') return `(return ${showCVal(c.val)})`;
   if (c.tag === 'CCApp')
-    return `(${showCVal(c.left)}) ${showCVal(c.right)}`;
+    return `(${showCVal(c.left)} ${showCVal(c.right)})`;
   if (c.tag === 'CCSeq')
     return `(${c.name} <- ${showCComp(c.val)}; ${showCComp(c.body)})`;
+  if (c.tag === 'CCAdd')
+    return `(${showCVal(c.left)} + ${showCVal(c.right)})`;
   return impossible('showCComp');
 };
 
