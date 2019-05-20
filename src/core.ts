@@ -1,8 +1,22 @@
 import { Name, impossible, freshId } from './util';
 import { Term, Pat } from './terms';
+import { MVal, showMVal } from './machine';
 
-export type CVal = CVVar | CVAbs | CVFloat;
-export type CComp = CCRet | CCApp | CCSeq | CCAdd;
+export type CVal
+  = CVVar
+  | CVAbs
+  | CVEmbed
+  | CVUnit
+  | CVFloat
+  | CVPair
+  | CVSum;
+export type CComp
+  = CCRet
+  | CCApp
+  | CCSeq
+  | CCAdd
+  | CCSelect
+  | CCCase;
 
 export interface CVVar {
   readonly tag: 'CVVar';
@@ -19,12 +33,40 @@ export interface CVAbs {
 export const CVAbs = (name: Name, body: CComp): CVAbs =>
   ({ tag: 'CVAbs', name, body });
 
+export interface CVEmbed {
+  readonly tag: 'CVEmbed';
+  readonly val: MVal;
+}
+export const CVEmbed = (val: MVal): CVEmbed =>
+  ({ tag: 'CVEmbed', val });
+
+export interface CVUnit {
+  readonly tag: 'CVUnit';
+}
+export const CVUnit: CVUnit = { tag: 'CVUnit' };
+
 export interface CVFloat {
   readonly tag: 'CVFloat';
   readonly val: number;
 }
 export const CVFloat = (val: number): CVFloat =>
   ({ tag: 'CVFloat', val });
+
+export interface CVPair {
+  readonly tag: 'CVPair';
+  readonly fst: CVal;
+  readonly snd: CVal;
+}
+export const CVPair = (fst: CVal, snd: CVal): CVPair =>
+  ({ tag: 'CVPair', fst, snd });
+
+export interface CVSum {
+  readonly tag: 'CVSum';
+  readonly label: 'L' | 'R';
+  readonly val: CVal;
+}
+export const CVSum = (label: 'L' | 'R', val: CVal): CVSum =>
+  ({ tag: 'CVSum', label, val });
 
 export interface CCRet {
   readonly tag: 'CCRet';
@@ -62,11 +104,31 @@ export interface CCAdd {
 export const CCAdd = (left: CVal, right: CVal): CCAdd =>
   ({ tag: 'CCAdd', left, right });
 
+export interface CCSelect {
+  readonly tag: 'CCSelect';
+  readonly label: 'fst' | 'snd';
+  readonly val: CVal;
+}
+export const CCSelect = (label: 'fst' | 'snd', val: CVal): CCSelect =>
+  ({ tag: 'CCSelect', label, val });
+
+export interface CCCase {
+  readonly tag: 'CCCase';
+  readonly val: CVal;
+}
+export const CCCase = (val: CVal): CCCase =>
+  ({ tag: 'CCCase', val });
+
 export const showCVal = (c: CVal): string => {
   if (c.tag === 'CVVar') return c.name;
   if (c.tag === 'CVAbs')
     return `(\\${c.name} -> ${showCComp(c.body)})`;
+  if (c.tag === 'CVUnit') return 'Unit';
   if (c.tag === 'CVFloat') return `${c.val}`;
+  if (c.tag === 'CVPair')
+    return `(${showCVal(c.fst)}, ${showCVal(c.snd)})`;
+  if (c.tag === 'CVSum') return `(${c.label} ${showCVal(c.val)})`;
+  if (c.tag === 'CVEmbed') return `(#embed ${showMVal(c.val)})`;
   return impossible('showCVal');
 };
 export const showCComp = (c: CComp): string => {
@@ -77,6 +139,10 @@ export const showCComp = (c: CComp): string => {
     return `(${c.name} <- ${showCComp(c.val)}; ${showCComp(c.body)})`;
   if (c.tag === 'CCAdd')
     return `(${showCVal(c.left)} + ${showCVal(c.right)})`;
+  if (c.tag === 'CCSelect')
+    return `(.${c.label} ${showCVal(c.val)})`;
+  if (c.tag === 'CCCase')
+    return `(? ${showCVal(c.val)})`;
   return impossible('showCComp');
 };
 

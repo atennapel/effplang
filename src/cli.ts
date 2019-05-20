@@ -5,8 +5,8 @@ import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
 import { setConfig } from './config';
-import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar } from './core';
-import { runToVal, showMVal, MGEnv, MFloat, MClos } from './machine';
+import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq } from './core';
+import { runToVal, showMVal, MGEnv, MFloat, MClos, MUnit } from './machine';
 import { Nil } from './list';
 
 const tv = TVar;
@@ -15,8 +15,6 @@ const tVoid = TCon('Void');
 const tUnit = TCon('Unit');
 const tPair = TCon('Pair');
 const tSum = TCon('Sum');
-const tBool = TCon('Bool');
-const tList = TCon('List');
 const tFloat = TCon('Float');
 
 const tenv = getInitialEnv();
@@ -28,24 +26,14 @@ tenv.tcons.Unit = kType;
 tenv.global.Unit = tUnit;
 
 tenv.tcons.Pair = kfun(kType, kType, kType);
-tenv.global.pair = tforall([['a', kType], ['b', kType]], tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))));
+tenv.global.Pair = tforall([['a', kType], ['b', kType]], tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))));
 tenv.global.fst = tforall([['a', kType], ['b', kType]], tfun(tapp(tPair, tv('a'), tv('b')), tv('a')));
 tenv.global.snd = tforall([['a', kType], ['b', kType]], tfun(tapp(tPair, tv('a'), tv('b')), tv('b')));
 
 tenv.tcons.Sum = kfun(kType, kType, kType);
-tenv.global.inl = tforall([['a', kType], ['b', kType]], tfun(tv('a'), tapp(tSum, tv('a'), tv('b'))));
-tenv.global.inr = tforall([['a', kType], ['b', kType]], tfun(tv('b'), tapp(tSum, tv('a'), tv('b'))));
-tenv.global.caseSum = tforall([['a', kType], ['b', kType], ['r', kType]], tfun(tapp(tSum, tv('a'), tv('b')), tfun(tv('a'), tv('r')), tfun(tv('b'), tv('r')), tv('r')));
-
-tenv.tcons.Bool = kType;
-tenv.global.True = tBool;
-tenv.global.False = tBool;
-tenv.global.cond = tforall([['t', kType]], tfun(tBool, tv('t'), tv('t'), tv('t')));
-
-tenv.tcons.List = kfun(kType, kType);
-tenv.global.Nil = tforall([['t', kType]], tapp(tList, tv('t')));
-tenv.global.Cons = tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')), tapp(tList, tv('t'))));
-tenv.global.caseList = tforall([['t', kType], ['r', kType]], tfun(tapp(tList, tv('t')), tv('r'), tfun(tv('t'), tapp(tList, tv('t')), tv('r')), tv('r')));
+tenv.global.L = tforall([['a', kType], ['b', kType]], tfun(tv('a'), tapp(tSum, tv('a'), tv('b'))));
+tenv.global.R = tforall([['a', kType], ['b', kType]], tfun(tv('b'), tapp(tSum, tv('a'), tv('b'))));
+tenv.global.case = tforall([['a', kType], ['b', kType], ['r', kType]], tfun(tapp(tSum, tv('a'), tv('b')), tfun(tv('a'), tv('r')), tfun(tv('b'), tv('r')), tv('r')));
 
 tenv.global.fix = tforall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t')));
 
@@ -54,10 +42,25 @@ tenv.global.zero = tFloat;
 tenv.global.one = tFloat;
 tenv.global.add = tfun(tFloat, tFloat, tFloat);
 
+const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
+
 const genv: MGEnv = {
+  void: MClos(CVAbs('x', CCRet(CVVar('x'))), Nil),
+  Unit: MUnit,
+
+  fix: MClos(CVAbs('f', CCApp(fixPart, fixPart)), Nil),
+
   zero: MFloat(0),
   one: MFloat(1),
   add: MClos(CVAbs('x', CCRet(CVAbs('y', CCAdd(CVVar('x'), CVVar('y'))))), Nil),
+
+  Pair: MClos(CVAbs('x', CCRet(CVAbs('y', CCRet(CVPair(CVVar('x'), CVVar('y')))))), Nil),
+  fst: MClos(CVAbs('p', CCSelect('fst', CVVar('p'))), Nil),
+  snd: MClos(CVAbs('p', CCSelect('snd', CVVar('p'))), Nil),
+
+  L: MClos(CVAbs('x', CCRet(CVSum('L', CVVar('x')))), Nil),
+  R: MClos(CVAbs('x', CCRet(CVSum('R', CVVar('x')))), Nil),
+  case: MClos(CVAbs('s', CCCase(CVVar('s'))), Nil),
 };
 
 setConfig({ showKinds: true });
