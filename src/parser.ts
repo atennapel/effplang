@@ -10,6 +10,7 @@ import {
   PWildcard,
   Ann,
   PAnn,
+  Let,
 } from './terms';
 import {
   Type,
@@ -59,13 +60,9 @@ const parseName = (ts: string[]): string | null => {
   if (i === l) return null;
   return ts.splice(i + 1).reverse().join('');
 };
-const parseId = (ts: string[]): Var | null => {
-  const x = parseName(ts);
-  if (!x) return null;
-  return Var(x);
-};
 
-const parsePat = (ts: string[]): Pat[] => {
+const parsePat = (ts: string[]): Pat[] | null => {
+  skipWhitespace(ts);
   if (skipSymbol(ts, '_')) {
     if (skipSymbol(ts, '_')) return err(`_ after _ in pattern`);
     if (parseName(ts)) return err(`hole not allowed in pattern`);
@@ -85,6 +82,7 @@ const parsePat = (ts: string[]): Pat[] => {
         break;
       }
       const pats2 = parsePat(ts);
+      if (!pats2) break;
       for (let i = 0, l = pats2.length; i < l; i++)
         pats.push(pats2[i]);
     }
@@ -93,31 +91,22 @@ const parsePat = (ts: string[]): Pat[] => {
     return pats.map(p => PAnn(p, ty as Type));
   }
   const x = parseName(ts);
-  if (!x) return err(`expected a pattern`);
+  if (!x) return null;
   return [PVar(x)];
+};
+
+const patToVar = (pat: Pat): Term => {
+  if (pat.tag === 'PVar') return Var(pat.name);
+  if (pat.tag === 'PWildcard') return err(`invalid var: _`);
+  return Ann(patToVar(pat.pat), pat.type);
 };
 
 const parseExpr = (ts: string[]): Term | null => {
   skipWhitespace(ts);
   if (skipSymbol(ts, '(')) {
-    const es = [];
-    let ty: Type | null = null;
-    while (true) {
-      skipWhitespace(ts);
-      if (ts.length === 0) return err(`unclosed (`);
-      if (skipSymbol(ts, ')')) break;
-      if (skipSymbol(ts, ':')) {
-        ts.push('(');
-        ty = parseTypeR(ts);
-        if (!ty) return err(`invalid type in annotation`);
-        break;
-      }
-      const expr = parseExpr(ts);
-      if (!expr) return err(`failed to parse expr in application`);
-      es.push(expr);
-    }
-    if (es.length === 0) return err(`empty app`);
-    return ty ? Ann(appFrom(es), ty) : appFrom(es);
+    const body = parseTermTop(ts);
+    if (skipSymbol(ts, ')')) return body;
+    else return err(`unclosed ( in app`);
   }
   if (skipSymbol(ts, '\\')) {
     const args: Pat[] = [];
@@ -126,6 +115,7 @@ const parseExpr = (ts: string[]): Term | null => {
       if (ts.length === 0) return err(`no -> after \\`);
       if (skipSymbol2(ts, '->')) break;
       const pats = parsePat(ts);
+      if (!pats) break;
       for (let i = 0, l = pats.length; i < l; i++)
         args.push(pats[i]);
     }
@@ -136,7 +126,7 @@ const parseExpr = (ts: string[]): Term | null => {
       ts.push('(');
       parens = true;
     }
-    const body = parseAppTop(ts);
+    const body = parseTermTop(ts);
     if (!parens && body.tag === 'Ann')
       return Ann(abs(args, body.term), body.type);
     return abs(args, body);
@@ -146,7 +136,20 @@ const parseExpr = (ts: string[]): Term | null => {
     if (!name) return err(`expected name after hole _`);
     return Hole(name);
   }
-  return parseId(ts);
+  const pats = parsePat(ts);
+  if (!pats) return null;
+  if (pats.length === 0) return err(`expected pattern`);
+  if (pats.length > 1) return err(`too many patterns`);
+  const pat = pats[0];
+  skipWhitespace(ts);
+  if (skipSymbol2(ts, '<-')) {
+    const val = parseTermTop(ts);
+    skipWhitespace(ts);
+    if (!skipSymbol(ts, ';')) return err(`expected ; after <-`);
+    const body = parseTermTop(ts);
+    return Let(pat, val, body);
+  }
+  return patToVar(pat);
 };
 
 const parseAppTop = (ts: string[]): Term => {
@@ -156,14 +159,17 @@ const parseAppTop = (ts: string[]): Term => {
   if (!expr) return err(`expected term in parseAppTop`);
   while (true) {
     skipWhitespace(ts);
+    if (ts[ts.length - 1] === ';') break;
+    if (ts[ts.length - 1] === ')') break;
     if (skipSymbol(ts, ':')) {
       const ty = parseTypeTop(ts);
       return Ann(expr, ty);
     }
     const expr2 = parseExpr(ts);
-    if (!expr2) return expr;
+    if (!expr2) break;
     expr = App(expr, expr2);
   }
+  return expr;
 };
 
 const parseTermTop = (ts: string[]): Term => {
@@ -178,23 +184,8 @@ export const parseTerm = (str: string): Term => {
 };
 
 // types
-const parseTVar = (ts: string[]): TVar | null => {
-  const x = parseName(ts);
-  if (!x || /[A-Z]/.test(x[0])) return null;
-  return TVar(x);
-};
-const parseTCon = (ts: string[]): TCon | null => {
-  const x = parseName(ts);
-  if (!x || /[a-z]/.test(x[0])) return null;
-  return TCon(x);
-};
-const parseTypeId = (ts: string[]): TVar | TCon | null => {
-  const x = parseName(ts);
-  if (!x) return null;
-  return /[A-Z]/.test(x[0]) ? TCon(x) : TVar(x);
-};
-
 const parseTypePat = (ts: string[]): [Name, Kind | null][] => {
+  skipWhitespace(ts);
   if (skipSymbol(ts, '(')) {
     const pats: Name[] = [];
     let ki: Kind | null = null;
@@ -210,6 +201,7 @@ const parseTypePat = (ts: string[]): [Name, Kind | null][] => {
       }
       const arg = parseName(ts);
       if (!arg) return err(`expected name in forall pattern`);
+      if (/[A-Z]/.test(arg[0])) return err(`constructor in forall`);
       pats.push(arg);
     }
     if (pats.length === 0) return err(`empty forall pattern`);
@@ -218,23 +210,16 @@ const parseTypePat = (ts: string[]): [Name, Kind | null][] => {
   }
   const x = parseName(ts);
   if (!x) return err(`expected a pattern`);
+  if (/[A-Z]/.test(x[0])) return err(`constructor in forall`);
   return [[x, null]];
 };
 
 const parseTypeR = (ts: string[]): Type | null => {
   skipWhitespace(ts);
   if (skipSymbol(ts, '(')) {
-    const es: Type[] = [];
-    while (true) {
-      skipWhitespace(ts);
-      if (ts.length === 0) return err(`unclosed ( in type`);
-      if (skipSymbol(ts, ')')) break;
-      const expr = parseTypeTop(ts);
-      if (!expr) return err(`failed to parse type in type application`);
-      es.push(expr);
-    }
-    if (es.length === 0) return err(`empty tapp`);
-    return tappFrom(es);
+    const body = parseTypeTop(ts);
+    if (skipSymbol(ts, ')')) return body;
+    else return err(`unclosed ( in type`);
   }
   const name = parseName(ts);
   if (!name) return null;
@@ -259,7 +244,7 @@ const parseTAppTop = (ts: string[]): Type => {
   skipWhitespace(ts);
   if (ts.length === 0) return err(`empty tapp`);
   let expr = parseTypeR(ts);
-  if (!expr) return err(`expected identifier in parseTAppTop but got: ${ts[ts.length - 1]}`);
+  if (!expr) return err(`expected identifier in parseTAppTop but got`);
   while (true) {
     skipWhitespace(ts);
     if (ts[ts.length - 1] === ')') break;
@@ -287,6 +272,7 @@ const parseTypeTop = (ts: string[]): Type => {
     tys.push(ty);
     funLast = false;
   }
+  if (tys.length === 0) return err(`empty type`);
   const tf = tfunFrom(tys);
   if (funLast) {
     if (tys.length === 0) return tFun;

@@ -14,7 +14,7 @@ console.log(showTy(ty));
 /**
  * TODO:
  * - parser:
- *  - let
+ *  - let without <-
  * - effect rows
  * - record rows
  */
