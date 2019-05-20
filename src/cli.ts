@@ -67,7 +67,7 @@ const genv: MGEnv = {
   case: MClos(CVAbs('s', CCCase(CVVar('s'))), Nil),
 };
 
-setConfig({ showKinds: true, debug: true });
+setConfig({ showKinds: true });
 
 if (process.argv[2]) {
   try {
