@@ -135,7 +135,7 @@ const step = (genv: MGEnv, st: MState): MState | null => {
   if (comp.tag === 'CCRet' && cont.tag === 'MSeq') {
     const v = reifyVal(genv, env, comp.val);
     if (!v) return null;
-    return MState(cont.body, extend(cont.name, v, env), cont.rest);
+    return MState(cont.body, extend(cont.name, v, cont.env), cont.rest);
   }
   if (comp.tag === 'CCApp') {
     const f = reifyVal(genv, env, comp.left);
