@@ -5,6 +5,8 @@ import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
 import { setConfig } from './config';
+import { termToComp, showCComp } from './core';
+import { runToVal, showMVal } from './machine';
 
 const tv = TVar;
 
@@ -54,6 +56,10 @@ if (process.argv[2]) {
     console.log(showTerm(term));
     const ty = infer(tenv, term);
     console.log(showTy(ty));
+    const core = termToComp(term);
+    console.log(showCComp(core));
+    const rest = runToVal(core);
+    console.log(showMVal(rest));
   } catch (err) {
     console.error(err);
     process.exit();
@@ -69,6 +75,10 @@ if (process.argv[2]) {
         console.log(showTerm(term));
         const ty = infer(tenv, term);
         console.log(showTy(ty));
+        const core = termToComp(term);
+        console.log(showCComp(core));
+        const rest = runToVal(core);
+        console.log(showMVal(rest));
       } catch (err) {
         console.error(`${err}`);
       }   
