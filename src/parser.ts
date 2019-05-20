@@ -10,6 +10,7 @@ import {
   Ann,
   PAnn,
   Let,
+  Lit,
 } from './terms';
 import {
   Type,
@@ -57,6 +58,17 @@ const parseName = (ts: string[]): string | null => {
   while (i >= 0 && /[a-z]/i.test(ts[i])) i--;
   if (i === l) return null;
   return ts.splice(i + 1).reverse().join('');
+};
+const parseNumber = (ts: string[]): number | null => {
+  const l = ts.length - 1;
+  if (l < 0) return null;
+  let i = l;
+  while (i >= 0 && /[\-0-9\.]/.test(ts[i])) i--;
+  if (i === l) return null;
+  const x = ts.splice(i + 1).reverse().join('');
+  const n = +x;
+  if (isNaN(n)) return err(`invalid number: ${x}`);
+  return n;
 };
 
 const parsePat = (ts: string[]): Pat[] | null => {
@@ -134,6 +146,8 @@ const parseExpr = (ts: string[]): Term | null => {
     if (!name) return err(`expected name after hole _`);
     return Hole(name);
   }
+  const n = parseNumber(ts);
+  if (n !== null) return Lit(n);
   const pats = parsePat(ts);
   if (!pats) return null;
   if (pats.length === 0) return err(`expected pattern`);

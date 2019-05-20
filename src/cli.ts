@@ -1,6 +1,6 @@
 import { parseTerm } from './parser';
 import { getInitialEnv } from './env';
-import { infer } from './inference';
+import { infer, tFloat } from './inference';
 import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
@@ -15,7 +15,6 @@ const tVoid = TCon('Void');
 const tUnit = TCon('Unit');
 const tPair = TCon('Pair');
 const tSum = TCon('Sum');
-const tFloat = TCon('Float');
 
 const tenv = getInitialEnv();
 
@@ -38,9 +37,6 @@ tenv.global.case = tforall([['a', kType], ['b', kType], ['r', kType]], tfun(tapp
 tenv.global.fix = tforall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t')));
 
 tenv.tcons.Float = kType;
-tenv.global.zero = tFloat;
-tenv.global.one = tFloat;
-tenv.global.negone = tFloat;
 tenv.global.add = tfun(tFloat, tFloat, tFloat);
 tenv.global.eq = tfun(tFloat, tFloat, tapp(tSum, tUnit, tUnit));
 
@@ -52,9 +48,6 @@ const genv: MGEnv = {
 
   fix: MClos(CVAbs('f', CCApp(fixPart, fixPart)), Nil),
 
-  zero: MFloat(0),
-  one: MFloat(1),
-  negone: MFloat(-1),
   add: MClos(CVAbs('x', CCRet(CVAbs('y', CCAdd(CVVar('x'), CVVar('y'))))), Nil),
   eq: MClos(CVAbs('x', CCRet(CVAbs('y', CCEq(CVVar('x'), CVVar('y'))))), Nil),
 

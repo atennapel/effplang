@@ -7,7 +7,8 @@ export type Term
   | Abs
   | Let
   | Ann
-  | Hole;
+  | Hole
+  | Lit;
 
 export interface Var {
   readonly tag: 'Var';
@@ -59,6 +60,13 @@ export interface Hole {
 export const Hole = (name: string): Hole =>
   ({ tag: 'Hole', name });
 
+export interface Lit {
+  readonly tag: 'Lit';
+  readonly val: number;
+}
+export const Lit = (val: number): Lit =>
+  ({ tag: 'Lit', val });
+
 export type Pat
   = PVar
   | PWildcard
@@ -103,5 +111,7 @@ export const showTerm = (t: Term): string => {
     return `(let ${showPat(t.pat)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Hole')
     return `_${t.name}`;
+  if (t.tag === 'Lit')
+    return `${t.val}`;
   return impossible('showTerm');
 };

@@ -15,6 +15,7 @@ import {
   quantify,
   freshTMeta,
   TMeta,
+  TCon,
 } from './types';
 import {
   unifyTFun,
@@ -24,6 +25,8 @@ import {
   instantiate,
   subsCheckRho,
 } from './unification';
+
+export const tFloat = TCon('Float');
 
 export type LTEnv = List<[string, Type]>;
 export const extendVar = (lenv: LTEnv, x: Name, t: Type): LTEnv =>
@@ -118,6 +121,10 @@ const tcRho = (env: TEnv, lenv: LTEnv, term: Term, ex: Expected): void => {
     const ty = freshTMeta(kType);
     holes.push([term.name, ty, lenv]);
     instSigma(env, ty, ex);
+    return;
+  }
+  if (term.tag === 'Lit') {
+    instSigma(env, tFloat, ex);
     return;
   }
   return impossible('tcRho');

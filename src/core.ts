@@ -163,7 +163,7 @@ export const isComp = (t: Term): boolean =>
   t.tag === 'Ann' ? isComp(t.term) :
   t.tag === 'App' || t.tag === 'Let';
 export const isVal = (t: Term): boolean =>
-  t.tag === 'Var' || t.tag === 'Abs'
+  t.tag === 'Var' || t.tag === 'Abs' || t.tag === 'Lit';
 export const patToCore = (p: Pat): Name => {
   if (p.tag === 'PWildcard') return '_';
   if (p.tag === 'PAnn') return patToCore(p.pat);
@@ -174,6 +174,8 @@ export const termToVal = (t: Term): CVal => {
   if (t.tag === 'Var') return CVVar(t.name);
   if (t.tag === 'Abs')
     return CVAbs(patToCore(t.pat), termToComp(t.body));
+  if (t.tag === 'Lit')
+    return CVFloat(t.val);
   return impossible('termToVal');
 };
 export const termToComp = (t: Term): CComp => {

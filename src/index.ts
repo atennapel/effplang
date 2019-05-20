@@ -13,6 +13,10 @@ console.log(showTy(ty));
 
 /**
  * TODO:
+ * - strings
+ * - definitions
+ * - recursive definitions
+ * - recursive lets (?)
  * - effect rows
  * - record rows
  */
