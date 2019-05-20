@@ -2,7 +2,6 @@ import {
   Term,
   Var,
   App,
-  appFrom,
   abs,
   PVar,
   Hole,
@@ -17,7 +16,6 @@ import {
   TApp,
   TVar,
   TCon,
-  tappFrom,
   tforall,
   tfunFrom,
   tFun,
@@ -143,7 +141,7 @@ const parseExpr = (ts: string[]): Term | null => {
   const pat = pats[0];
   skipWhitespace(ts);
   if (skipSymbol2(ts, '<-')) {
-    const val = parseTermTop(ts);
+    const val = parseTermTop(ts, true);
     skipWhitespace(ts);
     if (!skipSymbol(ts, ';')) return err(`expected ; after <-`);
     const body = parseTermTop(ts);
@@ -152,19 +150,23 @@ const parseExpr = (ts: string[]): Term | null => {
   return patToVar(pat);
 };
 
-const parseAppTop = (ts: string[]): Term => {
+const parseAppTop = (ts: string[], underLet: boolean = false): Term => {
   skipWhitespace(ts);
   if (ts.length === 0) return err(`empty app`);
   let expr = parseExpr(ts);
   if (!expr) return err(`expected term in parseAppTop`);
   while (true) {
     skipWhitespace(ts);
-    if (ts[ts.length - 1] === ';') break;
     if (ts[ts.length - 1] === ')') break;
     if (skipSymbol(ts, ':')) {
       const ty = parseTypeTop(ts);
       return Ann(expr, ty);
     }
+    if (!underLet && skipSymbol(ts, ';')) {
+      const rest = parseTermTop(ts);
+      return Let(PWildcard, expr, rest);
+    }
+    if (ts[ts.length - 1] === ';') break;
     const expr2 = parseExpr(ts);
     if (!expr2) break;
     expr = App(expr, expr2);
@@ -172,9 +174,9 @@ const parseAppTop = (ts: string[]): Term => {
   return expr;
 };
 
-const parseTermTop = (ts: string[]): Term => {
+const parseTermTop = (ts: string[], underLet: boolean = false): Term => {
   skipWhitespace(ts);
-  const term = parseAppTop(ts);
+  const term = parseAppTop(ts, underLet);
   // if (ts.length > 0) return err(`parse term premature end`);
   return term;
 };

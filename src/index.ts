@@ -13,8 +13,6 @@ console.log(showTy(ty));
 
 /**
  * TODO:
- * - parser:
- *  - let without <-
  * - effect rows
  * - record rows
  */
