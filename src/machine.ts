@@ -1,6 +1,6 @@
 import { List, Cons, Nil, toString } from './list';
 import { Name, impossible } from './util';
-import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat, showCComp, CVEmbed, CVVar, CCApp } from './core';
+import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat, showCComp, CVEmbed, CVVar, CCApp, CVSum, CVUnit } from './core';
 import { log } from './config';
 
 export type MGEnv = { [key: string]: MVal };
@@ -152,6 +152,13 @@ const step = (genv: MGEnv, st: MState): MState | null => {
     const b = reifyVal(genv, env, comp.right);
     if (!b || b.tag !== 'MFloat') return null;
     return MState(CCRet(CVFloat(a.val + b.val)), env, cont);
+  }
+  if (comp.tag === 'CCEq') {
+    const a = reifyVal(genv, env, comp.left);
+    if (!a || a.tag !== 'MFloat') return null;
+    const b = reifyVal(genv, env, comp.right);
+    if (!b || b.tag !== 'MFloat') return null;
+    return MState(CCRet(CVSum(a === b ? 'L' : 'R', CVUnit)), env, cont);
   }
   if (comp.tag === 'CCSelect') {
     const v = reifyVal(genv, env, comp.val);

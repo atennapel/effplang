@@ -16,7 +16,8 @@ export type CComp
   | CCSeq
   | CCAdd
   | CCSelect
-  | CCCase;
+  | CCCase
+  | CCEq;
 
 export interface CVVar {
   readonly tag: 'CVVar';
@@ -119,6 +120,14 @@ export interface CCCase {
 export const CCCase = (val: CVal): CCCase =>
   ({ tag: 'CCCase', val });
 
+export interface CCEq {
+  readonly tag: 'CCEq';
+  readonly left: CVal;
+  readonly right: CVal;
+}
+export const CCEq = (left: CVal, right: CVal): CCEq =>
+  ({ tag: 'CCEq', left, right });
+
 export const showCVal = (c: CVal): string => {
   if (c.tag === 'CVVar') return c.name;
   if (c.tag === 'CVAbs')
@@ -139,6 +148,8 @@ export const showCComp = (c: CComp): string => {
     return `(${c.name} <- ${showCComp(c.val)}; ${showCComp(c.body)})`;
   if (c.tag === 'CCAdd')
     return `(${showCVal(c.left)} + ${showCVal(c.right)})`;
+  if (c.tag === 'CCEq')
+    return `(${showCVal(c.left)} == ${showCVal(c.right)})`;
   if (c.tag === 'CCSelect')
     return `(.${c.label} ${showCVal(c.val)})`;
   if (c.tag === 'CCCase')

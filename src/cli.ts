@@ -5,7 +5,7 @@ import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
 import { setConfig } from './config';
-import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq } from './core';
+import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq, CCEq } from './core';
 import { runToVal, showMVal, MGEnv, MFloat, MClos, MUnit } from './machine';
 import { Nil } from './list';
 
@@ -40,7 +40,9 @@ tenv.global.fix = tforall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t')))
 tenv.tcons.Float = kType;
 tenv.global.zero = tFloat;
 tenv.global.one = tFloat;
+tenv.global.negone = tFloat;
 tenv.global.add = tfun(tFloat, tFloat, tFloat);
+tenv.global.eq = tfun(tFloat, tFloat, tapp(tSum, tUnit, tUnit));
 
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
@@ -52,7 +54,9 @@ const genv: MGEnv = {
 
   zero: MFloat(0),
   one: MFloat(1),
+  negone: MFloat(-1),
   add: MClos(CVAbs('x', CCRet(CVAbs('y', CCAdd(CVVar('x'), CVVar('y'))))), Nil),
+  eq: MClos(CVAbs('x', CCRet(CVAbs('y', CCEq(CVVar('x'), CVVar('y'))))), Nil),
 
   Pair: MClos(CVAbs('x', CCRet(CVAbs('y', CCRet(CVPair(CVVar('x'), CVVar('y')))))), Nil),
   fst: MClos(CVAbs('p', CCSelect('fst', CVVar('p'))), Nil),
