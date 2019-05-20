@@ -1,4 +1,4 @@
-import { List, Cons, Nil, toString } from './List';
+import { List, Cons, Nil, toString } from './list';
 import { Name, impossible } from './util';
 import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat } from './core';
 

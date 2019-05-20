@@ -7,7 +7,7 @@ import { kType, kfun } from './kinds';
 import { setConfig } from './config';
 import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar } from './core';
 import { runToVal, showMVal, MGEnv, MFloat, MClos } from './machine';
-import { Nil } from './List';
+import { Nil } from './list';
 
 const tv = TVar;
 
