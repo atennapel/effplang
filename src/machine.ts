@@ -209,6 +209,11 @@ const step = (genv: MGEnv, st: MState): MState | null => {
         CCRet(CVAbs('y', CCApp(CVVar('y'), CVEmbed(v.val))))), Nil);
     return MState(CCRet(CVEmbed(x)), env, cont);
   }
+  if (comp.tag === 'CCShow') {
+    const v = reifyVal(genv, env, comp.val);
+    if (!v) return null;
+    return MState(CCRet(CVEmbed(MString(showMVal(v)))), env, cont);
+  }
   return null;
 };
 const steps = (genv: MGEnv, st: MState): MState => {

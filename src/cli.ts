@@ -5,7 +5,7 @@ import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
 import { setConfig } from './config';
-import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq, CCEq, CCAppend } from './core';
+import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq, CCEq, CCAppend, CCShow } from './core';
 import { runToVal, showMVal, MGEnv, MFloat, MClos, MUnit } from './machine';
 import { Nil } from './list';
 
@@ -42,6 +42,7 @@ tenv.global.eq = tforall([['t', kType]], tfun(tv('t'), tv('t'), tapp(tSum, tUnit
 
 tenv.tcons.String = kType;
 tenv.global.append = tfun(tString, tString, tString);
+tenv.global.show = tforall([['t', kType]], tfun(tv('t'), tString));
 
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
@@ -54,6 +55,7 @@ const genv: MGEnv = {
   add: MClos(CVAbs('x', CCRet(CVAbs('y', CCAdd(CVVar('x'), CVVar('y'))))), Nil),
   append: MClos(CVAbs('x', CCRet(CVAbs('y', CCAppend(CVVar('x'), CVVar('y'))))), Nil),
   eq: MClos(CVAbs('x', CCRet(CVAbs('y', CCEq(CVVar('x'), CVVar('y'))))), Nil),
+  show: MClos(CVAbs('x', CCShow(CVVar('x'))), Nil),
 
   Pair: MClos(CVAbs('x', CCRet(CVAbs('y', CCRet(CVPair(CVVar('x'), CVVar('y')))))), Nil),
   fst: MClos(CVAbs('p', CCSelect('fst', CVVar('p'))), Nil),
