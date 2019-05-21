@@ -27,6 +27,7 @@ import {
 } from './unification';
 
 export const tFloat = TCon('Float');
+export const tString = TCon('String');
 
 export type LTEnv = List<[string, Type]>;
 export const extendVar = (lenv: LTEnv, x: Name, t: Type): LTEnv =>
@@ -124,7 +125,7 @@ const tcRho = (env: TEnv, lenv: LTEnv, term: Term, ex: Expected): void => {
     return;
   }
   if (term.tag === 'Lit') {
-    instSigma(env, tFloat, ex);
+    instSigma(env, typeof term.val === 'string' ? tString : tFloat, ex);
     return;
   }
   return impossible('tcRho');

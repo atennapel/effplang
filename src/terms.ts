@@ -62,9 +62,9 @@ export const Hole = (name: string): Hole =>
 
 export interface Lit {
   readonly tag: 'Lit';
-  readonly val: number;
+  readonly val: number | string;
 }
-export const Lit = (val: number): Lit =>
+export const Lit = (val: number | string): Lit =>
   ({ tag: 'Lit', val });
 
 export type Pat
@@ -112,6 +112,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Hole')
     return `_${t.name}`;
   if (t.tag === 'Lit')
-    return `${t.val}`;
+    return typeof t.val === 'string' ?
+      JSON.stringify(t.val) : `${t.val}`;
   return impossible('showTerm');
 };

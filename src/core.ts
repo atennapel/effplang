@@ -8,6 +8,7 @@ export type CVal
   | CVEmbed
   | CVUnit
   | CVFloat
+  | CVString
   | CVPair
   | CVSum;
 export type CComp
@@ -15,6 +16,7 @@ export type CComp
   | CCApp
   | CCSeq
   | CCAdd
+  | CCAppend
   | CCSelect
   | CCCase
   | CCEq;
@@ -52,6 +54,13 @@ export interface CVFloat {
 }
 export const CVFloat = (val: number): CVFloat =>
   ({ tag: 'CVFloat', val });
+
+export interface CVString {
+  readonly tag: 'CVString';
+  readonly val: string;
+}
+export const CVString = (val: string): CVString =>
+  ({ tag: 'CVString', val });
 
 export interface CVPair {
   readonly tag: 'CVPair';
@@ -105,6 +114,14 @@ export interface CCAdd {
 export const CCAdd = (left: CVal, right: CVal): CCAdd =>
   ({ tag: 'CCAdd', left, right });
 
+export interface CCAppend {
+  readonly tag: 'CCAppend';
+  readonly left: CVal;
+  readonly right: CVal;
+}
+export const CCAppend = (left: CVal, right: CVal): CCAppend =>
+  ({ tag: 'CCAppend', left, right });
+
 export interface CCSelect {
   readonly tag: 'CCSelect';
   readonly label: 'fst' | 'snd';
@@ -134,6 +151,7 @@ export const showCVal = (c: CVal): string => {
     return `(\\${c.name} -> ${showCComp(c.body)})`;
   if (c.tag === 'CVUnit') return 'Unit';
   if (c.tag === 'CVFloat') return `${c.val}`;
+  if (c.tag === 'CVString') return JSON.stringify(c.val);
   if (c.tag === 'CVPair')
     return `(${showCVal(c.fst)}, ${showCVal(c.snd)})`;
   if (c.tag === 'CVSum') return `(${c.label} ${showCVal(c.val)})`;
@@ -148,6 +166,8 @@ export const showCComp = (c: CComp): string => {
     return `(${c.name} <- ${showCComp(c.val)}; ${showCComp(c.body)})`;
   if (c.tag === 'CCAdd')
     return `(${showCVal(c.left)} + ${showCVal(c.right)})`;
+  if (c.tag === 'CCAppend')
+    return `(${showCVal(c.left)} ++ ${showCVal(c.right)})`;
   if (c.tag === 'CCEq')
     return `(${showCVal(c.left)} == ${showCVal(c.right)})`;
   if (c.tag === 'CCSelect')
@@ -175,7 +195,7 @@ export const termToVal = (t: Term): CVal => {
   if (t.tag === 'Abs')
     return CVAbs(patToCore(t.pat), termToComp(t.body));
   if (t.tag === 'Lit')
-    return CVFloat(t.val);
+    return typeof t.val === 'string' ? CVString(t.val) : CVFloat(t.val);
   return impossible('termToVal');
 };
 export const termToComp = (t: Term): CComp => {

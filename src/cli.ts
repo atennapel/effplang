@@ -1,11 +1,11 @@
 import { parseTerm } from './parser';
 import { getInitialEnv } from './env';
-import { infer, tFloat } from './inference';
+import { infer, tFloat, tString } from './inference';
 import { showTerm } from './terms';
 import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
 import { kType, kfun } from './kinds';
 import { setConfig } from './config';
-import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq, CCEq } from './core';
+import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq, CCEq, CCAppend } from './core';
 import { runToVal, showMVal, MGEnv, MFloat, MClos, MUnit } from './machine';
 import { Nil } from './list';
 
@@ -38,7 +38,10 @@ tenv.global.fix = tforall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t')))
 
 tenv.tcons.Float = kType;
 tenv.global.add = tfun(tFloat, tFloat, tFloat);
-tenv.global.eq = tfun(tFloat, tFloat, tapp(tSum, tUnit, tUnit));
+tenv.global.eq = tforall([['t', kType]], tfun(tv('t'), tv('t'), tapp(tSum, tUnit, tUnit)));
+
+tenv.tcons.String = kType;
+tenv.global.append = tfun(tString, tString, tString);
 
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
@@ -49,6 +52,7 @@ const genv: MGEnv = {
   fix: MClos(CVAbs('f', CCApp(fixPart, fixPart)), Nil),
 
   add: MClos(CVAbs('x', CCRet(CVAbs('y', CCAdd(CVVar('x'), CVVar('y'))))), Nil),
+  append: MClos(CVAbs('x', CCRet(CVAbs('y', CCAppend(CVVar('x'), CVVar('y'))))), Nil),
   eq: MClos(CVAbs('x', CCRet(CVAbs('y', CCEq(CVVar('x'), CVVar('y'))))), Nil),
 
   Pair: MClos(CVAbs('x', CCRet(CVAbs('y', CCRet(CVPair(CVVar('x'), CVVar('y')))))), Nil),

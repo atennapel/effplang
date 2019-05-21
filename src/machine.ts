@@ -1,6 +1,6 @@
 import { List, Cons, Nil, toString } from './list';
 import { Name, impossible } from './util';
-import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat, showCComp, CVEmbed, CVVar, CCApp, CVSum, CVUnit } from './core';
+import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat, showCComp, CVEmbed, CVVar, CCApp, CVSum, CVUnit, CVString } from './core';
 import { log } from './config';
 
 export type MGEnv = { [key: string]: MVal };
@@ -23,7 +23,7 @@ const extend = (name: Name, val: MVal, env: MLEnv) =>
 export const showMLEnv = (env: MLEnv): string =>
   toString(env, ({ name, val }) => `${name} = ${showMVal(val)}`);
 
-export type MVal = MClos | MUnit | MFloat | MPair | MSum;
+export type MVal = MClos | MUnit | MFloat | MString | MPair | MSum;
 
 export interface MClos {
   readonly tag: 'MClos';
@@ -44,6 +44,14 @@ export interface MFloat {
 }
 export const MFloat = (val: number): MFloat =>
   ({ tag: 'MFloat', val });
+
+export interface MString {
+  readonly tag: 'MString';
+  readonly val: string;
+}
+export const MString = (val: string): MString =>
+  ({ tag: 'MString', val });
+  
 
 export interface MPair {
   readonly tag: 'MPair';
@@ -66,11 +74,26 @@ export const showMVal = (val: MVal): string => {
     return `(${showCVal(val.abs)}, ${showMLEnv(val.env)})`;
   if (val.tag === 'MUnit') return 'Unit';
   if (val.tag === 'MFloat') return `${val.val}`;
+  if (val.tag === 'MString') return JSON.stringify(val.val);
   if (val.tag === 'MPair')
     return `(${showMVal(val.fst)}, ${showMVal(val.snd)})`;
   if (val.tag === 'MSum')
     return `(${val.label} ${showMVal(val.val)})`;
   return impossible('showMVal');
+};
+
+export const eqMVal = (a: MVal, b: MVal): boolean => {
+  if (a.tag === 'MClos') return false;
+  if (a.tag === 'MUnit') return b.tag === 'MUnit';
+  if (a.tag === 'MFloat') return b.tag === 'MFloat' && a.val === b.val;
+  if (a.tag === 'MString') return b.tag === 'MString' && a.val === b.val;
+  if (a.tag === 'MPair')
+    return b.tag === 'MPair' && eqMVal(a.fst, b.fst) &&
+      eqMVal(a.snd, b.snd);
+  if (a.tag === 'MSum')
+    return b.tag === 'MSum' && a.label === b.label &&
+      eqMVal(a.val, b.val);
+  return false;
 };
 
 type MCont = MTop | MSeq;
@@ -114,6 +137,7 @@ const reifyVal = (genv: MGEnv, env: MLEnv, val: CVal): MVal | null => {
   if (val.tag === 'CVAbs') return MClos(val, env);
   if (val.tag === 'CVUnit') return MUnit;
   if (val.tag === 'CVFloat') return MFloat(val.val);
+  if (val.tag === 'CVString') return MString(val.val);
   if (val.tag === 'CVPair') {
     const a = reifyVal(genv, env, val.fst);
     if (!a) return null;
@@ -151,14 +175,23 @@ const step = (genv: MGEnv, st: MState): MState | null => {
     if (!a || a.tag !== 'MFloat') return null;
     const b = reifyVal(genv, env, comp.right);
     if (!b || b.tag !== 'MFloat') return null;
-    return MState(CCRet(CVFloat(a.val + b.val)), env, cont);
+    return MState(CCRet(CVEmbed(MFloat(a.val + b.val))), env, cont);
+  }
+  if (comp.tag === 'CCAppend') {
+    const a = reifyVal(genv, env, comp.left);
+    if (!a || a.tag !== 'MString') return null;
+    const b = reifyVal(genv, env, comp.right);
+    if (!b || b.tag !== 'MString') return null;
+    return MState(CCRet(CVEmbed(MString(a.val + b.val))), env, cont);
   }
   if (comp.tag === 'CCEq') {
     const a = reifyVal(genv, env, comp.left);
-    if (!a || a.tag !== 'MFloat') return null;
+    if (!a) return null;
     const b = reifyVal(genv, env, comp.right);
-    if (!b || b.tag !== 'MFloat') return null;
-    return MState(CCRet(CVSum(a.val === b.val ? 'L' : 'R', CVUnit)), env, cont);
+    if (!b) return null;
+    return MState(
+      CCRet(
+        CVEmbed(MSum(eqMVal(a, b) ? 'L' : 'R', MUnit))), env, cont);
   }
   if (comp.tag === 'CCSelect') {
     const v = reifyVal(genv, env, comp.val);
@@ -170,8 +203,10 @@ const step = (genv: MGEnv, st: MState): MState | null => {
     const v = reifyVal(genv, env, comp.val);
     if (!v || v.tag !== 'MSum') return null;
     const x = v.label === 'L' ?
-      MClos(CVAbs('x', CCRet(CVAbs('y', CCApp(CVVar('x'), CVEmbed(v.val))))), Nil) :
-      MClos(CVAbs('x', CCRet(CVAbs('y', CCApp(CVVar('y'), CVEmbed(v.val))))), Nil);
+      MClos(CVAbs('x',
+        CCRet(CVAbs('y', CCApp(CVVar('x'), CVEmbed(v.val))))), Nil) :
+      MClos(CVAbs('x',
+        CCRet(CVAbs('y', CCApp(CVVar('y'), CVEmbed(v.val))))), Nil);
     return MState(CCRet(CVEmbed(x)), env, cont);
   }
   return null;

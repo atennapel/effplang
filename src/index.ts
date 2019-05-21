@@ -13,10 +13,10 @@ console.log(showTy(ty));
 
 /**
  * TODO:
- * - strings
  * - definitions
  * - recursive definitions
  * - recursive lets (?)
+ * - parser: string unicode escape
  * - effect rows
  * - record rows
  */

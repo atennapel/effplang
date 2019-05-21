@@ -141,6 +141,28 @@ const parseExpr = (ts: string[]): Term | null => {
       return Ann(abs(args, body.term), body.type);
     return abs(args, body);
   }
+  if (skipSymbol(ts, '"')) {
+    const t = [];
+    let escape = false;
+    while (true) {
+      if (ts.length === 0) return err(`unclosed string`);
+      const c = ts.pop();
+      if (escape) {
+        escape = false;
+        if (c === 'n') t.push('\n');
+        else if (c === 'r') t.push('\r');
+        else if (c === '0') t.push('\0');
+        else if (c === 'v') t.push('\v');
+        else if (c === 't') t.push('\t');
+        else if (c === 'b') t.push('\b');
+        else if (c === 'f') t.push('\f'); 
+        else t.push(c);
+      } else if (c === '"') break;
+      else if (c === '\\') escape = true;
+      else t.push(c);  
+    }
+    return Lit(t.join(''));
+  }
   if (skipSymbol(ts, '_')) {
     const name = parseName(ts);
     if (!name) return err(`expected name after hole _`);
