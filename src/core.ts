@@ -1,6 +1,7 @@
 import { Name, impossible, freshId } from './util';
 import { Term, Pat } from './terms';
 import { MVal, showMVal } from './machine';
+import { List, mapList, toArray } from './list';
 
 export type CVal
   = CVVar
@@ -10,7 +11,8 @@ export type CVal
   | CVFloat
   | CVString
   | CVPair
-  | CVSum;
+  | CVSum
+  | CVRecord;
 export type CComp
   = CCRet
   | CCApp
@@ -18,6 +20,9 @@ export type CComp
   | CCAdd
   | CCAppend
   | CCSelect
+  | CCRecordSelect
+  | CCRecordInsert
+  | CCRecordRemove
   | CCCase
   | CCEq
   | CCShow;
@@ -79,6 +84,13 @@ export interface CVSum {
 export const CVSum = (label: 'L' | 'R', val: CVal): CVSum =>
   ({ tag: 'CVSum', label, val });
 
+export interface CVRecord {
+  readonly tag: 'CVRecord';
+  readonly val: List<[Name, CVal]>;
+}
+export const CVRecord = (val: List<[Name, CVal]>): CVRecord =>
+  ({ tag: 'CVRecord', val });
+
 export interface CCRet {
   readonly tag: 'CCRet';
   readonly val: CVal;
@@ -131,6 +143,31 @@ export interface CCSelect {
 export const CCSelect = (label: 'fst' | 'snd', val: CVal): CCSelect =>
   ({ tag: 'CCSelect', label, val });
 
+export interface CCRecordSelect {
+  readonly tag: 'CCRecordSelect';
+  readonly label: Name;
+  readonly val: CVal;
+}
+export const CCRecordSelect = (label: Name, val: CVal): CCRecordSelect =>
+  ({ tag: 'CCRecordSelect', label, val });
+
+export interface CCRecordInsert {
+  readonly tag: 'CCRecordInsert';
+  readonly label: Name;
+  readonly val: CVal;
+  readonly rec: CVal;
+}
+export const CCRecordInsert = (label: Name, val: CVal, rec: CVal): CCRecordInsert =>
+  ({ tag: 'CCRecordInsert', label, val, rec });
+
+export interface CCRecordRemove {
+  readonly tag: 'CCRecordRemove';
+  readonly label: Name;
+  readonly rec: CVal;
+}
+export const CCRecordRemove = (label: Name, rec: CVal): CCRecordRemove =>
+  ({ tag: 'CCRecordRemove', label, rec });
+
 export interface CCCase {
   readonly tag: 'CCCase';
   readonly val: CVal;
@@ -164,6 +201,8 @@ export const showCVal = (c: CVal): string => {
     return `(${showCVal(c.fst)}, ${showCVal(c.snd)})`;
   if (c.tag === 'CVSum') return `(${c.label} ${showCVal(c.val)})`;
   if (c.tag === 'CVEmbed') return `(#embed ${showMVal(c.val)})`;
+  if (c.tag === 'CVRecord')
+    return `{${toArray(c.val, (([l, v]) => `${l} = ${showCVal(v)}`)).join(', ')}}`;
   return impossible('showCVal');
 };
 export const showCComp = (c: CComp): string => {
@@ -180,6 +219,12 @@ export const showCComp = (c: CComp): string => {
     return `(${showCVal(c.left)} == ${showCVal(c.right)})`;
   if (c.tag === 'CCSelect')
     return `(.${c.label} ${showCVal(c.val)})`;
+  if (c.tag === 'CCRecordSelect')
+    return `${showCVal(c.val)}.${c.label}`;
+  if (c.tag === 'CCRecordInsert')
+    return `{${showCVal(c.rec)} | ${c.label} = ${showCVal(c.val)}}`;
+  if (c.tag === 'CCRecordRemove')
+    return `{${showCVal(c.rec)} | -${c.label}}`;
   if (c.tag === 'CCCase')
     return `(? ${showCVal(c.val)})`;
   if (c.tag === 'CCShow')

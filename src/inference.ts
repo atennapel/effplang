@@ -15,7 +15,8 @@ import {
   quantify,
   freshTMeta,
   TMeta,
-  TCon,
+  tString,
+  tFloat,
 } from './types';
 import {
   unifyTFun,
@@ -25,9 +26,6 @@ import {
   instantiate,
   subsCheckRho,
 } from './unification';
-
-export const tFloat = TCon('Float');
-export const tString = TCon('String');
 
 export type LTEnv = List<[string, Type]>;
 export const extendVar = (lenv: LTEnv, x: Name, t: Type): LTEnv =>

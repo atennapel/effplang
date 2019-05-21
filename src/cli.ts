@@ -1,12 +1,12 @@
 import { parseTerm } from './parser';
 import { getInitialEnv } from './env';
-import { infer, tFloat, tString } from './inference';
+import { infer } from './inference';
 import { showTerm } from './terms';
-import { showTy, TCon, tforall, tfun, TVar, tapp } from './types';
-import { kType, kfun } from './kinds';
+import { showTy, TCon, tforall, tfun, TVar, tapp, tFloat, tString, tRecord, tRowEmpty, TRowExtends } from './types';
+import { kType, kfun, kRow } from './kinds';
 import { setConfig } from './config';
-import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq, CCEq, CCAppend, CCShow } from './core';
-import { runToVal, showMVal, MGEnv, MFloat, MClos, MUnit } from './machine';
+import { termToComp, showCComp, CVAbs, CCRet, CCAdd, CVVar, CVPair, CCSelect, CVSum, CCCase, CCApp, CCSeq, CCEq, CCAppend, CCShow, CCRecordSelect, CCRecordInsert, CCRecordRemove } from './core';
+import { runToVal, showMVal, MGEnv, MFloat, MClos, MUnit, MRecord } from './machine';
 import { Nil } from './list';
 
 const tv = TVar;
@@ -44,6 +44,14 @@ tenv.tcons.String = kType;
 tenv.global.append = tfun(tString, tString, tString);
 tenv.global.show = tforall([['t', kType]], tfun(tv('t'), tString));
 
+tenv.global.empty = tapp(tRecord, tRowEmpty);
+tenv.global.getX = tforall([['t', kType], ['r', kRow]], tfun(tapp(tRecord, TRowExtends('x', tv('t'), tv('r'))), tv('t')));
+tenv.global.insertX = tforall([['t', kType], ['r', kRow]], tfun(tv('t'), tapp(tRecord, tv('r')), tapp(tRecord, TRowExtends('x', tv('t'), tv('r')))));
+tenv.global.removeX = tforall([['t', kType], ['r', kRow]], tfun(tapp(tRecord, TRowExtends('x', tv('t'), tv('r'))), tapp(tRecord, tv('r'))));
+tenv.global.getY = tforall([['t', kType], ['r', kRow]], tfun(tapp(tRecord, TRowExtends('y', tv('t'), tv('r'))), tv('t')));
+tenv.global.insertY = tforall([['t', kType], ['r', kRow]], tfun(tv('t'), tapp(tRecord, tv('r')), tapp(tRecord, TRowExtends('y', tv('t'), tv('r')))));
+tenv.global.removeY = tforall([['t', kType], ['r', kRow]], tfun(tapp(tRecord, TRowExtends('y', tv('t'), tv('r'))), tapp(tRecord, tv('r'))));
+
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
 const genv: MGEnv = {
@@ -64,6 +72,14 @@ const genv: MGEnv = {
   L: MClos(CVAbs('x', CCRet(CVSum('L', CVVar('x')))), Nil),
   R: MClos(CVAbs('x', CCRet(CVSum('R', CVVar('x')))), Nil),
   case: MClos(CVAbs('s', CCCase(CVVar('s'))), Nil),
+
+  empty: MRecord(Nil),
+  getX: MClos(CVAbs('r', CCRecordSelect('x', CVVar('r'))), Nil),
+  insertX: MClos(CVAbs('t', CCRet(CVAbs('r', CCRecordInsert('x', CVVar('t'), CVVar('r'))))), Nil),
+  removeX: MClos(CVAbs('r', CCRecordRemove('x', CVVar('r'))), Nil),
+  getY: MClos(CVAbs('r', CCRecordSelect('y', CVVar('r'))), Nil),
+  insertY: MClos(CVAbs('t', CCRet(CVAbs('r', CCRecordInsert('y', CVVar('t'), CVVar('r'))))), Nil),
+  removeY: MClos(CVAbs('r', CCRecordRemove('y', CVVar('r'))), Nil),
 };
 
 setConfig({ showKinds: true });

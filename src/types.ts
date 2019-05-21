@@ -8,7 +8,8 @@ export type Type
   | TCon
   | TVar
   | TSkol
-  | TMeta;
+  | TMeta
+  | TRowExtend;
 
 export interface TForall {
   readonly tag: 'TForall';
@@ -42,6 +43,16 @@ export const tappFrom = (ts: Type[]): Type =>
   ts.reduce(TApp);
 export const tapp = (...ts: Type[]): Type =>
   tappFrom(ts);
+export const flattenTApp = (t: Type): Type[] => {
+  let c = t;
+  const r: Type[] = [];
+  while (c.tag === 'TApp') {
+    r.push(c.right);
+    c = c.left;
+  }
+  r.push(c);
+  return r.reverse();
+};
 
 export interface TCon {
   readonly tag: 'TCon';
@@ -84,6 +95,54 @@ export const TMeta = (
 export const freshTMeta = (kind: Kind, name: Name | null = null) =>
   TMeta(freshId(), kind, name);
 
+export const tRowEmpty = TCon('{}');
+export const tRecord = TCon('Record');
+export const tFloat = TCon('Float');
+export const tString = TCon('String');
+
+export interface TRowExtend {
+  readonly tag: 'TRowExtend';
+  readonly label: Name;
+}
+export const TRowExtend = (label: Name): TRowExtend =>
+  ({ tag: 'TRowExtend', label });
+export interface TRowExtends {
+  readonly tag: 'TApp';
+  readonly left: {
+    readonly tag: 'TApp';
+    readonly left: TRowExtend;
+    readonly right: Type;
+  }
+  readonly right: Type;
+}
+export const TRowExtends = (
+  label: Name,
+  ty: Type,
+  rest: Type,
+): TRowExtends =>
+  TApp(TApp(TRowExtend(label), ty), rest) as TRowExtends;
+export const isTRowExtends = (ty: Type): ty is TRowExtends =>
+  ty.tag === 'TApp' && ty.left.tag === 'TApp' &&
+    ty.left.left.tag === 'TRowExtend';
+export const trowExtendsFrom = (
+  ts: [Name, Type][],
+  rest: Type = tRowEmpty,
+): Type =>
+  ts.reduceRight((r, [l, t]) => TRowExtends(l, t, r), rest);
+export interface TRow {
+  labels: [Name, Type][];
+  rest: Type;
+}
+export const flattenTRowExtends = (t: Type): TRow => {
+  let c = t;
+  const labels: [Name, Type][] = [];
+  while (isTRowExtends(c)) {
+    labels.push([c.left.left.label, c.left.right]);
+    c = c.right;
+  }
+  return { labels, rest: c };
+};
+
 export interface TFun {
   readonly tag: 'TApp';
   readonly left: {
@@ -105,7 +164,6 @@ export const tfunFrom = (ts: Type[]): Type =>
   ts.reduceRight((x, y) => TFun(y, x));
 export const tfun = (...ts: Type[]): Type =>
   tfunFrom(ts);
-
 export const flattenTFun = (t: Type): Type[] => {
   let c = t;
   const r: Type[] = [];
@@ -115,17 +173,6 @@ export const flattenTFun = (t: Type): Type[] => {
   }
   r.push(c);
   return r;
-};
-
-export const flattenTApp = (t: Type): Type[] => {
-  let c = t;
-  const r: Type[] = [];
-  while (c.tag === 'TApp') {
-    r.push(c.right);
-    c = c.left;
-  }
-  r.push(c);
-  return r.reverse();
 };
 
 export const showTy = (t: Type): string => {
@@ -144,11 +191,17 @@ export const showTy = (t: Type): string => {
       .map(t => isTFun(t) || t.tag === 'TForall' ?
         `(${showTy(t)})` : showTy(t))
       .join(' -> ');
+  if (isTRowExtends(t)) {
+    const fl = flattenTRowExtends(t);
+    return `{${fl.labels.map(([l, t]) => `${l} : ${showTy(t)}`).join(', ')}${fl.rest === tRowEmpty ? '' : ` | ${showTy(fl.rest)}`}}`;
+  }
   if (t.tag === 'TApp')
     return flattenTApp(t)
-      .map(t => t.tag === 'TApp' || t.tag === 'TForall' ?
+      .map(t => (t.tag === 'TApp' && !isTRowExtends(t)) || t.tag === 'TForall' ?
             `(${showTy(t)})` : showTy(t))
       .join(' ');
+  if (t.tag === 'TRowExtend')
+    return `:${t.label}`;
   return impossible('showTy');
 };
 

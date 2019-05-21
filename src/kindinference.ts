@@ -18,7 +18,11 @@ import {
   freshKMeta,
   KFun,
   kType,
+  kfun,
+  kRow,
 } from './kinds';
+
+export const tRowExtendKind = kfun(kType, kRow, kRow);
 
 const bindKMeta = (x: KMeta, k: Kind): void => {
   if (x.kind) return unifyKind(x.kind, k);
@@ -46,6 +50,7 @@ const inferKindR = (env: TEnv, t: Type): [Kind, Type] => {
   if (t.tag === 'TVar')
     return terr(`tvar ${showTy(t)} in inferKindR`);
   if (t.tag === 'TSkol') return [t.kind, t];
+  if (t.tag === 'TRowExtend') return [tRowExtendKind, t];
   if (t.tag === 'TCon') {
     const k = lookupTCon(env, t.name);
     if (!k) return terr(`undefined type constructor ${showTy(t)}`);
@@ -113,6 +118,7 @@ export const inferKind = (env: TEnv, ty: Type): Type => {
 export const kindOf = (env: TEnv, t: Type): Kind => {
   if (t.tag === 'TMeta') return t.kind;
   if (t.tag === 'TSkol') return t.kind;
+  if (t.tag === 'TRowExtend') return tRowExtendKind;
   if (t.tag === 'TCon')
     return lookupTCon(env, t.name) ||
       terr(`undefined type constructor ${showTy(t)}`);

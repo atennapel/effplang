@@ -52,6 +52,15 @@ export const each = <T>(l: List<T>, fn: (val: T) => void): void => {
   }
 };
 
+export const any = <T>(l: List<T>, fn: (val: T) => boolean): boolean => {
+  let c = l;
+  while (c.tag === 'Cons') {
+    if (fn(c.head)) return true;
+    c = c.tail;
+  }
+  return false;
+};
+
 export const toArray = <T, R>(
   l: List<T>,
   fn: (val: T) => R,
@@ -81,3 +90,14 @@ export const lookupList = <T>(l: List<T>, i: number): T | null => {
   }
   return null;
 };
+export const lookupListKey = <K, T>(l: List<[K, T]>, k: K): T | null => {
+  while (l.tag === 'Cons') {
+    const c = l.head;
+    if (c[0] === k) return c[1];
+    l = l.tail;
+  }
+  return null;
+};
+
+export const removeFirstKey = <K, T>(l: List<[K, T]>, k: K): List<[K, T]> =>
+  l.tag === 'Cons' ? (l.head[0] === k ? l.tail : Cons(l.head, removeFirstKey(l.tail, k))) : l;

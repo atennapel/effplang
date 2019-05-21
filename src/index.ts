@@ -13,10 +13,13 @@ console.log(showTy(ty));
 
 /**
  * TODO:
+ * - parser: syntax for rows
+ * - parser: syntax for records and operations on them
  * - definitions
  * - recursive definitions
  * - recursive lets (?)
- * - parser: string unicode escape
+ * - flatten sequencing
  * - effect rows
- * - record rows
+ * - row-polymorphic variants
+ * - parser: string unicode escape
  */

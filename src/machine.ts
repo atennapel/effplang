@@ -1,4 +1,4 @@
-import { List, Cons, Nil, toString } from './list';
+import { List, Cons, Nil, toString, toArray, mapList, any, lookupListKey, removeFirstKey } from './list';
 import { Name, impossible } from './util';
 import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat, showCComp, CVEmbed, CVVar, CCApp, CVSum, CVUnit, CVString } from './core';
 import { log } from './config';
@@ -23,7 +23,14 @@ const extend = (name: Name, val: MVal, env: MLEnv) =>
 export const showMLEnv = (env: MLEnv): string =>
   toString(env, ({ name, val }) => `${name} = ${showMVal(val)}`);
 
-export type MVal = MClos | MUnit | MFloat | MString | MPair | MSum;
+export type MVal
+  = MClos
+  | MUnit
+  | MFloat
+  | MString
+  | MPair
+  | MSum
+  | MRecord;
 
 export interface MClos {
   readonly tag: 'MClos';
@@ -69,6 +76,13 @@ export interface MSum {
 export const MSum = (label: 'L' | 'R', val: MVal): MSum =>
   ({ tag: 'MSum', label, val });
 
+export interface MRecord {
+  readonly tag: 'MRecord';
+  readonly val: List<[Name, MVal]>;
+}
+export const MRecord = (val: List<[Name, MVal]>): MRecord =>
+  ({ tag: 'MRecord', val });
+
 export const showMVal = (val: MVal): string => {
   if (val.tag === 'MClos')
     return `(${showCVal(val.abs)}, ${showMLEnv(val.env)})`;
@@ -79,11 +93,12 @@ export const showMVal = (val: MVal): string => {
     return `(${showMVal(val.fst)}, ${showMVal(val.snd)})`;
   if (val.tag === 'MSum')
     return `(${val.label} ${showMVal(val.val)})`;
+  if (val.tag === 'MRecord')
+    return `{${toArray(val.val, (([l, v]) => `${l} = ${showMVal(v)}`)).join(', ')}}`;
   return impossible('showMVal');
 };
 
 export const eqMVal = (a: MVal, b: MVal): boolean => {
-  if (a.tag === 'MClos') return false;
   if (a.tag === 'MUnit') return b.tag === 'MUnit';
   if (a.tag === 'MFloat') return b.tag === 'MFloat' && a.val === b.val;
   if (a.tag === 'MString') return b.tag === 'MString' && a.val === b.val;
@@ -93,7 +108,7 @@ export const eqMVal = (a: MVal, b: MVal): boolean => {
   if (a.tag === 'MSum')
     return b.tag === 'MSum' && a.label === b.label &&
       eqMVal(a.val, b.val);
-  return false;
+  return a === b;
 };
 
 type MCont = MTop | MSeq;
@@ -150,12 +165,16 @@ const reifyVal = (genv: MGEnv, env: MLEnv, val: CVal): MVal | null => {
     if (!v) return null;
     return MSum(val.label, v);
   }
+  if (val.tag === 'CVRecord') {
+    const r = mapList(val.val, ([k, v]) => [k, reifyVal(genv, env, v)] as [Name, MVal | null]);
+    if (any(r, x => x === null)) return null;
+    return MRecord(r as List<[Name, MVal]>);
+  }
   if (val.tag === 'CVEmbed') return val.val;
   return null;
 };
 const step = (genv: MGEnv, st: MState): MState | null => {
   const { comp, env, cont } = st;
-
   if (comp.tag === 'CCRet' && cont.tag === 'MSeq') {
     const v = reifyVal(genv, env, comp.val);
     if (!v) return null;
@@ -198,6 +217,25 @@ const step = (genv: MGEnv, st: MState): MState | null => {
     if (!v || v.tag !== 'MPair') return null;
     const x = comp.label === 'fst' ? v.fst : v.snd;
     return MState(CCRet(CVEmbed(x)), env, cont);
+  }
+  if (comp.tag === 'CCRecordSelect') {
+    const v = reifyVal(genv, env, comp.val);
+    if (!v || v.tag !== 'MRecord') return null;
+    const x = lookupListKey(v.val, comp.label);
+    if (!x) return null;
+    return MState(CCRet(CVEmbed(x)), env, cont);
+  }
+  if (comp.tag === 'CCRecordInsert') {
+    const w = reifyVal(genv, env, comp.val);
+    if (!w) return null;
+    const v = reifyVal(genv, env, comp.rec);
+    if (!v || v.tag !== 'MRecord') return null;
+    return MState(CCRet(CVEmbed(MRecord(Cons([comp.label, w], v.val)))), env, cont);
+  }
+  if (comp.tag === 'CCRecordRemove') {
+    const v = reifyVal(genv, env, comp.rec);
+    if (!v || v.tag !== 'MRecord') return null;
+    return MState(CCRet(CVEmbed(MRecord(removeFirstKey(v.val, comp.label)))), env, cont);
   }
   if (comp.tag === 'CCCase') {
     const v = reifyVal(genv, env, comp.val);

@@ -1,6 +1,6 @@
 import { TEnv } from './env';
-import { terr } from './util';
-import { kType, showKind, eqKind, Kind } from './kinds';
+import { terr, Name } from './util';
+import { kType, showKind, eqKind, Kind, kRow } from './kinds';
 import { kindOf } from './kindinference';
 import { log } from './config';
 import {
@@ -16,7 +16,27 @@ import {
   TVMap,
   substTVar,
   freshTSkol,
+  isTRowExtends,
+  TRowExtends,
 } from './types';
+
+const rewriteRow = (label: Name, ty: Type): TRowExtends => {
+  if (isTRowExtends(ty)) {
+    if (ty.left.left.label === label) return ty;
+    const tail = rewriteRow(label, ty.right);
+    return TRowExtends(label, tail.left.right,
+      TRowExtends(ty.left.left.label, ty.left.right, tail.right));
+  }
+  if (ty.tag === 'TMeta') {
+    if (ty.type) return rewriteRow(label, ty.type);
+    const tv = freshTMeta(kType);
+    const tr = freshTMeta(kRow);
+    const row = TRowExtends(label, tv, tr);
+    ty.type = row;
+    return row;
+  }
+  return terr(`cannot rewriteRow: ${label} in ${showTy(ty)}`);
+};
 
 const bindTMeta = (env: TEnv, x: TMeta, t: Type): void => {
   if (x.type) return unify(env, x.type, t);
@@ -33,17 +53,29 @@ const bindTMeta = (env: TEnv, x: TMeta, t: Type): void => {
   if (!x.name && t.tag === 'TMeta' && t.name) x.name = t.name;
   x.type = t;
 };
-export const unify = (env: TEnv, a: Type, b: Type): void => {
+export const unify = (env: TEnv, a_: Type, b_: Type): void => {
+  const a = prune(a_);
+  const b = prune(b_);
   log(() => `unify ${showTy(a)} ~ ${showTy(b)}`);
   if (a.tag === 'TVar' || b.tag === 'TVar')
     return terr(`tvar in unify: ${showTy(a)} ~ ${showTy(b)}`);
   if (a === b) return;
   if (a.tag === 'TMeta') return bindTMeta(env, a, b);
   if (b.tag === 'TMeta') return bindTMeta(env, b, a);
+  if (isTRowExtends(a) && isTRowExtends(b)) {
+    const rewr = rewriteRow(a.left.left.label, b);
+    unify(env, a.left.right, rewr.left.right);
+    unify(env, a.right, rewr.right);
+    return;
+  }
   if (a.tag === 'TApp' && b.tag === 'TApp') {
     unify(env, a.left, b.left);
-    return unify(env, a.right, b.right);
+    unify(env, a.right, b.right);
+    return;
   }
+  if (a.tag === 'TRowExtend' && b.tag === 'TRowExtend' &&
+      a.label === b.label)
+    return;
   if (a.tag === 'TSkol' && b.tag === 'TSkol' && a.id === b.id)
     return;
   if (a.tag === 'TCon' && b.tag === 'TCon' && a.name === b.name)
@@ -96,6 +128,11 @@ export const skolemise = (ty: Type, sk: TSkol[] = []): Type => {
     const b = skolemise(right, sk);
     return TFun(left, b);
   }
+  if (isTRowExtends(ty)) {
+    const { left: { right: type }, right: rest } = ty;
+    return TRowExtends(ty.left.left.label,
+      skolemise(type), skolemise(rest));
+  }
   return ty;
 };
 
@@ -114,9 +151,19 @@ export const subsCheckRho = (env: TEnv, a: Type, b: Type): void => {
     return subsCheckTFun(env, unifyTFun(env, a), b);
   if (isTFun(a))
     return subsCheckTFun(env, a, unifyTFun(env, b));
+  if (isTRowExtends(a) && isTRowExtends(b))
+    return subsCheckTRowExtends(env, a, b);
   return unify(env, a, b);
 };
 const subsCheckTFun = (env: TEnv, a: TFun, b: TFun): void => {
   subsCheck(env, b.left.right, a.left.right);
+  return subsCheck(env, a.right, b.right);
+};
+const subsCheckTRowExtends = (
+  env: TEnv,
+  a: TRowExtends,
+  b: TRowExtends,
+): void => {
+  subsCheck(env, a.left.right, b.left.right);
   return subsCheck(env, a.right, b.right);
 };

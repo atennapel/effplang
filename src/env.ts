@@ -1,5 +1,5 @@
 import { Type, showTy } from './types';
-import { Kind, KFun, kType, showKind } from './kinds';
+import { Kind, kType, showKind, kRow, kfun } from './kinds';
 import { Name, clone } from './util';
 
 export interface TEnv {
@@ -29,7 +29,9 @@ export const lookupTCon = (env: TEnv, x: Name): Kind | null =>
 const initialEnv = TEnv(
   {},
   {
-    '->': KFun(kType, KFun(kType, kType)),
+    '->': kfun(kType, kType, kType),
+    '{}': kRow,
+    Record: kfun(kRow, kType),
   },
 );
 
