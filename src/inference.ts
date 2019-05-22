@@ -3,7 +3,7 @@ import { inferKind } from './kindinference';
 import { kType } from './kinds';
 import { log } from './config';
 import { impossible, terr, resetId, Name } from './util';
-import { List, toArray, each, first, Cons, Nil } from './list';
+import { List, toArray, each, first, Cons, Nil, foldl, foldr } from './list';
 import { TEnv } from './env';
 import {
   Type,
@@ -17,6 +17,10 @@ import {
   TMeta,
   tString,
   tFloat,
+  tRowEmpty,
+  TRowExtends,
+  tRecord,
+  tapp,
 } from './types';
 import {
   unifyTFun,
@@ -125,6 +129,11 @@ const tcRho = (env: TEnv, lenv: LTEnv, term: Term, ex: Expected): void => {
   if (term.tag === 'Lit') {
     instSigma(env, typeof term.val === 'string' ? tString : tFloat, ex);
     return;
+  }
+  if (term.tag === 'LitRecord') {
+    const trecord = tapp(tRecord, foldr(term.val, (acc, [l, t]) =>
+      TRowExtends(l, inferSigma(env, lenv, t), acc), tRowEmpty as Type));
+    return instSigma(env, trecord, ex);
   }
   return impossible('tcRho');
 };

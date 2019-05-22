@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "npm run build && node build/src/cli"
+    "start": "npm run build && node build/src/cli",
+    "runindex": "npm run build && node build/src/index"
   },
   "author": "Albert ten Napel",
   "license": "ISC",

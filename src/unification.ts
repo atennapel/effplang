@@ -18,6 +18,8 @@ import {
   freshTSkol,
   isTRowExtends,
   TRowExtends,
+  tRecord,
+  TApp,
 } from './types';
 
 const rewriteRow = (label: Name, ty: Type): TRowExtends => {
@@ -89,6 +91,13 @@ export const unifyTFun = (env: TEnv, ty: Type): TFun => {
   unify(env, ty, fn);
   return fn;
 };
+export const unifyTRecord = (env: TEnv, ty: Type): TApp => {
+  if (ty.tag === 'TApp' && ty.left === tRecord)
+    return ty;
+  const rec = TApp(tRecord, freshTMeta(kRow));
+  unify(env, ty, rec);
+  return rec;
+};
 
 export const skolemCheck = (sk: TSkol[], ty: Type): void => {
   if (ty.tag === 'TSkol' && sk.indexOf(ty) >= 0)
@@ -133,6 +142,8 @@ export const skolemise = (ty: Type, sk: TSkol[] = []): Type => {
     return TRowExtends(ty.left.left.label,
       skolemise(type), skolemise(rest));
   }
+  if (ty.tag === 'TApp' && ty.left === tRecord)
+    return TApp(tRecord, skolemise(ty.right));
   return ty;
 };
 
@@ -153,6 +164,10 @@ export const subsCheckRho = (env: TEnv, a: Type, b: Type): void => {
     return subsCheckTFun(env, a, unifyTFun(env, b));
   if (isTRowExtends(a) && isTRowExtends(b))
     return subsCheckTRowExtends(env, a, b);
+  if (a.tag === 'TApp' && a.left === tRecord)
+    return subsCheckTRecord(env, a, unifyTRecord(env, b));
+  if (b.tag === 'TApp' && b.left === tRecord)
+    return subsCheckTRecord(env, unifyTRecord(env, a), b);
   return unify(env, a, b);
 };
 const subsCheckTFun = (env: TEnv, a: TFun, b: TFun): void => {
@@ -166,4 +181,7 @@ const subsCheckTRowExtends = (
 ): void => {
   subsCheck(env, a.left.right, b.left.right);
   return subsCheck(env, a.right, b.right);
+};
+const subsCheckTRecord = (env: TEnv, a: TApp, b: TApp): void => {
+  subsCheck(env, a.right, b.right);
 };

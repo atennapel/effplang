@@ -52,6 +52,18 @@ export const each = <T>(l: List<T>, fn: (val: T) => void): void => {
   }
 };
 
+export const foldl = <T, R>(l: List<T>, fn: (acc: R, val: T) => R, x: R): R => {
+  let acc = x;
+  let c = l;
+  while (c.tag === 'Cons') {
+    acc = fn(acc, c.head);
+    c = c.tail;
+  }
+  return acc;
+};
+export const foldr = <T, R>(l: List<T>, fn: (acc: R, val: T) => R, x: R): R =>
+  l.tag === 'Cons' ? fn(foldr(l.tail, fn, x), l.head) : x;
+
 export const any = <T>(l: List<T>, fn: (val: T) => boolean): boolean => {
   let c = l;
   while (c.tag === 'Cons') {
@@ -61,6 +73,8 @@ export const any = <T>(l: List<T>, fn: (val: T) => boolean): boolean => {
   return false;
 };
 
+export const fromArray = <T>(arr: T[]): List<T> =>
+  arr.reduceRight((a, b) => Cons(b, a), Nil as List<T>);
 export const toArray = <T, R>(
   l: List<T>,
   fn: (val: T) => R,
@@ -100,4 +114,6 @@ export const lookupListKey = <K, T>(l: List<[K, T]>, k: K): T | null => {
 };
 
 export const removeFirstKey = <K, T>(l: List<[K, T]>, k: K): List<[K, T]> =>
-  l.tag === 'Cons' ? (l.head[0] === k ? l.tail : Cons(l.head, removeFirstKey(l.tail, k))) : l;
+  l.tag === 'Cons' ?
+    (l.head[0] === k ?
+      l.tail : Cons(l.head, removeFirstKey(l.tail, k))) : l;

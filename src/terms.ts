@@ -1,5 +1,6 @@
 import { Name, impossible } from './util';
 import { Type, showTy } from './types';
+import { List, toArray } from './list';
 
 export type Term
   = Var
@@ -8,7 +9,8 @@ export type Term
   | Let
   | Ann
   | Hole
-  | Lit;
+  | Lit
+  | LitRecord;
 
 export interface Var {
   readonly tag: 'Var';
@@ -25,6 +27,8 @@ export const App = (left: Term, right: Term): App =>
   ({ tag: 'App', left, right });
 export const appFrom = (ts: Term[]): Term =>
   ts.reduce(App);
+export const app = (...ts: Term[]): Term =>
+  appFrom(ts);
 
 export interface Abs {
   readonly tag: 'Abs';
@@ -66,6 +70,13 @@ export interface Lit {
 }
 export const Lit = (val: number | string): Lit =>
   ({ tag: 'Lit', val });
+
+export interface LitRecord {
+  readonly tag: 'LitRecord';
+  readonly val: List<[Name, Term]>;
+}
+export const LitRecord = (val: List<[Name, Term]>): LitRecord =>
+  ({ tag: 'LitRecord', val });
 
 export type Pat
   = PVar
@@ -114,5 +125,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Lit')
     return typeof t.val === 'string' ?
       JSON.stringify(t.val) : `${t.val}`;
+  if (t.tag === 'LitRecord')
+    return `{${toArray(t.val, (([l, v]) => `${l} = ${showTerm(v)}`)).join(', ')}}`;
   return impossible('showTerm');
 };
