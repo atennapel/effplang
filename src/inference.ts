@@ -1,9 +1,9 @@
 import { Term, showTerm, Pat, showPat } from './terms';
 import { inferKind } from './kindinference';
-import { kType } from './kinds';
+import { kType, kRow } from './kinds';
 import { log } from './config';
 import { impossible, terr, resetId, Name } from './util';
-import { List, toArray, each, first, Cons, Nil, foldl, foldr } from './list';
+import { List, toArray, each, first, Cons, Nil, foldl, foldr, lookupListKey, fromArray } from './list';
 import { TEnv } from './env';
 import {
   Type,
@@ -21,6 +21,7 @@ import {
   TRowExtends,
   tRecord,
   tapp,
+  flattenTRowExtends,
 } from './types';
 import {
   unifyTFun,
@@ -29,6 +30,7 @@ import {
   skolemCheck,
   instantiate,
   subsCheckRho,
+  unify,
 } from './unification';
 
 export type LTEnv = List<[string, Type]>;
@@ -134,6 +136,16 @@ const tcRho = (env: TEnv, lenv: LTEnv, term: Term, ex: Expected): void => {
     const trecord = tapp(tRecord, foldr(term.val, (acc, [l, t]) =>
       TRowExtends(l, inferSigma(env, lenv, t), acc), tRowEmpty as Type));
     return instSigma(env, trecord, ex);
+  }
+  if (term.tag === 'RecordSelect') {
+    const ty = inferRho(env, lenv, term.val);
+    const flat = flattenTRowExtends(ty);
+    const rty = lookupListKey(fromArray(flat.labels), term.label);
+    if (rty) return instSigma(env, rty, ex);
+    const tv = freshTMeta(kType);
+    const tr = freshTMeta(kRow);
+    unify(env, flat.rest, TRowExtends(term.label, tv, tr));
+    return instSigma(env, tv, ex);
   }
   return impossible('tcRho');
 };

@@ -10,7 +10,8 @@ export type Term
   | Ann
   | Hole
   | Lit
-  | LitRecord;
+  | LitRecord
+  | RecordSelect;
 
 export interface Var {
   readonly tag: 'Var';
@@ -78,6 +79,14 @@ export interface LitRecord {
 export const LitRecord = (val: List<[Name, Term]>): LitRecord =>
   ({ tag: 'LitRecord', val });
 
+export interface RecordSelect {
+  readonly tag: 'RecordSelect';
+  readonly label: Name;
+  readonly val: Term;
+}
+export const RecordSelect = (label: Name, val: Term): RecordSelect =>
+  ({ tag: 'RecordSelect', label, val });
+
 export type Pat
   = PVar
   | PWildcard
@@ -127,5 +136,7 @@ export const showTerm = (t: Term): string => {
       JSON.stringify(t.val) : `${t.val}`;
   if (t.tag === 'LitRecord')
     return `{${toArray(t.val, (([l, v]) => `${l} = ${showTerm(v)}`)).join(', ')}}`;
+  if (t.tag === 'RecordSelect')
+    return `(.${t.label} ${showTerm(t.val)})`;
   return impossible('showTerm');
 };
