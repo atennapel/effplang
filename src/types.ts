@@ -1,6 +1,5 @@
 import { Name, Id, impossible, freshId } from './util';
-import { Kind, showKind } from './kinds';
-import { log, config } from './config';
+import { log } from './config';
 
 export type Type
   = TForall
@@ -8,28 +7,20 @@ export type Type
   | TCon
   | TVar
   | TSkol
-  | TMeta
-  | TRowExtend;
+  | TMeta;
 
 export interface TForall {
   readonly tag: 'TForall';
   readonly names: Name[];
-  readonly kinds: (Kind | null)[];
   readonly type: Type;
 }
 export const TForall = (
   names: Name[],
-  kinds: (Kind | null)[],
   type: Type
-): TForall => ({ tag: 'TForall', names, kinds, type });
-export const tforall = (ns: [Name, Kind | null][], type: Type) => {
+): TForall => ({ tag: 'TForall', names, type });
+export const tforall = (ns: Name[], type: Type) => {
   if (ns.length === 0) return type;
-  const [names, kinds] = ns.reduce((c, [x, k]) => {
-    c[0].push(x);
-    c[1].push(k);
-    return c
-  }, [[], []] as [Name[], (Kind | null)[]]);
-  return TForall(names, kinds, type);
+  return TForall(ns, type);
 };
 
 export interface TApp {
@@ -72,76 +63,28 @@ export interface TSkol {
   readonly tag: 'TSkol';
   readonly name: Name;
   readonly id: Id;
-  readonly kind: Kind;
 }
-export const TSkol = (name: Name, id: Id, kind: Kind): TSkol =>
-  ({ tag: 'TSkol', name, id, kind });
-export const freshTSkol = (name: Name, kind: Kind) =>
-  TSkol(name, freshId(), kind);
+export const TSkol = (name: Name, id: Id): TSkol =>
+  ({ tag: 'TSkol', name, id });
+export const freshTSkol = (name: Name) =>
+  TSkol(name, freshId());
 
 export interface TMeta {
   readonly tag: 'TMeta';
   readonly id: Id;
-  readonly kind: Kind;
   name: Name | null;
   type: Type | null;
 }
 export const TMeta = (
   id: Id,
-  kind: Kind,
   name: Name | null = null
 ): TMeta =>
-  ({ tag: 'TMeta', id, kind, name, type: null });
-export const freshTMeta = (kind: Kind, name: Name | null = null) =>
-  TMeta(freshId(), kind, name);
+  ({ tag: 'TMeta', id, name, type: null });
+export const freshTMeta = (name: Name | null = null) =>
+  TMeta(freshId(), name);
 
-export const tRowEmpty = TCon('{}');
-export const tRecord = TCon('Record');
 export const tFloat = TCon('Float');
 export const tString = TCon('String');
-
-export interface TRowExtend {
-  readonly tag: 'TRowExtend';
-  readonly label: Name;
-}
-export const TRowExtend = (label: Name): TRowExtend =>
-  ({ tag: 'TRowExtend', label });
-export interface TRowExtends {
-  readonly tag: 'TApp';
-  readonly left: {
-    readonly tag: 'TApp';
-    readonly left: TRowExtend;
-    readonly right: Type;
-  }
-  readonly right: Type;
-}
-export const TRowExtends = (
-  label: Name,
-  ty: Type,
-  rest: Type,
-): TRowExtends =>
-  TApp(TApp(TRowExtend(label), ty), rest) as TRowExtends;
-export const isTRowExtends = (ty: Type): ty is TRowExtends =>
-  ty.tag === 'TApp' && ty.left.tag === 'TApp' &&
-    ty.left.left.tag === 'TRowExtend';
-export const trowExtendsFrom = (
-  ts: [Name, Type][],
-  rest: Type = tRowEmpty,
-): Type =>
-  ts.reduceRight((r, [l, t]) => TRowExtends(l, t, r), rest);
-export interface TRow {
-  labels: [Name, Type][];
-  rest: Type;
-}
-export const flattenTRowExtends = (t: Type): TRow => {
-  let c = t;
-  const labels: [Name, Type][] = [];
-  while (isTRowExtends(c)) {
-    labels.push([c.left.left.label, c.left.right]);
-    c = c.right;
-  }
-  return { labels, rest: c };
-};
 
 export interface TFun {
   readonly tag: 'TApp';
@@ -175,7 +118,19 @@ export const flattenTFun = (t: Type): Type[] => {
   return r;
 };
 
-export const showTy = (t: Type): string => {
+export interface Annot {
+  readonly names: Name[];
+  readonly type: Type;
+}
+export const Annot = (names: Name[], type: Type): Annot =>
+  ({ names, type });
+export const annotAny = Annot(['t'], TVar('t'));
+
+export const showAnnot = (annot: Annot): string =>
+  annot.names.length === 0 ? showType(annot.type) :  
+    `exists ${annot.names.join(' ')}. ${showType(annot.type)}`;
+
+export const showType = (t: Type): string => {
   if (t.tag === 'TCon') return t.name;
   if (t.tag === 'TVar') return t.name;
   if (t.tag === 'TMeta')
@@ -183,26 +138,18 @@ export const showTy = (t: Type): string => {
   if (t.tag === 'TSkol') return `'${t.name}\$${t.id}`;
   if (t.tag === 'TForall')
     return `forall ${t.names.map((tv, i) =>
-      t.kinds[i] && config.showKinds ?
-        `(${tv} : ${showKind(t.kinds[i] as Kind)})` :
-        `${tv}`).join(' ')}. ${showTy(t.type)}`;
+      `${tv}`).join(' ')}. ${showType(t.type)}`;
   if (isTFun(t))
     return flattenTFun(t)
       .map(t => isTFun(t) || t.tag === 'TForall' ?
-        `(${showTy(t)})` : showTy(t))
+        `(${showType(t)})` : showType(t))
       .join(' -> ');
-  if (isTRowExtends(t)) {
-    const fl = flattenTRowExtends(t);
-    return `{${fl.labels.map(([l, t]) => `${l} : ${showTy(t)}`).join(', ')}${fl.rest === tRowEmpty ? '' : ` | ${showTy(fl.rest)}`}}`;
-  }
   if (t.tag === 'TApp')
     return flattenTApp(t)
-      .map(t => (t.tag === 'TApp' && !isTRowExtends(t)) || t.tag === 'TForall' ?
-            `(${showTy(t)})` : showTy(t))
+      .map(t => t.tag === 'TApp' || t.tag === 'TForall' ?
+            `(${showType(t)})` : showType(t))
       .join(' ');
-  if (t.tag === 'TRowExtend')
-    return `:${t.label}`;
-  return impossible('showTy');
+  return impossible('showType');
 };
 
 export type TVMap = { [key: string]: Type };
@@ -211,10 +158,10 @@ export const substTVar = (map: TVMap, ty: Type): Type => {
   if (ty.tag === 'TApp')
     return TApp(substTVar(map, ty.left), substTVar(map, ty.right));
   if (ty.tag === 'TForall') {
-    const { names, kinds, type } = ty;
+    const { names, type } = ty;
     const m: TVMap = {};
     for (let k in map) if (names.indexOf(k) < 0) m[k] = map[k];
-    return TForall(names, kinds, substTVar(m, type));
+    return TForall(names, substTVar(m, type));
   }
   return ty;
 };
@@ -246,7 +193,7 @@ export const prune = (ty: Type): Type => {
   if (ty.tag === 'TApp')
     return TApp(prune(ty.left), prune(ty.right));
   if (ty.tag === 'TForall')
-    return TForall(ty.names, ty.kinds, prune(ty.type));
+    return TForall(ty.names, prune(ty.type));
   return ty;
 };
 
@@ -267,6 +214,24 @@ export const occursTMeta = (x: TMeta, t: Type): boolean => {
   if (t.tag === 'TForall') return occursTMeta(x, t.type);
   return false;
 };
+export const occursTSkol = (x: TSkol, t: Type): boolean => {
+  if (x === t) return true;
+  if (t.tag === 'TMeta' && t.type)
+    return occursTSkol(x, t.type);
+  if (t.tag === 'TApp')
+    return occursTSkol(x, t.left) || occursTSkol(x, t.right);
+  if (t.tag === 'TForall') return occursTSkol(x, t.type);
+  return false;
+};
+export const occursAnyTSkol = (x: TSkol[], t: Type): boolean => {
+  if (t.tag === 'TSkol' && x.indexOf(t) >= 0) return true;
+  if (t.tag === 'TMeta' && t.type)
+    return occursAnyTSkol(x, t.type);
+  if (t.tag === 'TApp')
+    return occursAnyTSkol(x, t.left) || occursAnyTSkol(x, t.right);
+  if (t.tag === 'TForall') return occursAnyTSkol(x, t.type);
+  return false;
+};
 
 export const tbinders = (ty: Type, bs: Name[] = []): Name[] => {
   if (ty.tag === 'TApp')
@@ -282,30 +247,17 @@ export const tbinders = (ty: Type, bs: Name[] = []): Name[] => {
   return bs;
 };
 
-export const quantify = (tms: TMeta[], ty: Type): Type => {
-  log(() =>
-    `quantify ${showTy(ty)} with [${tms.map(showTy).join(', ')}]`);
-  const len = tms.length;
-  if (len === 0) return ty;
-  const used = tbinders(ty);
-  const tvs = Array(len);
-  const ks = Array(len);
-  let i = 0;
-  let l = 0;
-  let j = 0;
-  while (i < len) {
-    const x = tms[i].name;
-    const v = x && used.indexOf(x) < 0 ? x :
-      `${String.fromCharCode(l + 97)}${j > 0 ? j : ''}`;
-    if (used.indexOf(v) < 0) {
-      used.push(v);
-      tms[i].type = TVar(v);
-      tvs[i] = v;
-      ks[i] = tms[i].kind;
-      i++;
-    }
-    l = (l + 1) % 26;
-    if (l === 0) j++;
-  }
-  return TForall(tvs, ks, prune(ty));
+export const isMono = (ty: Type): boolean => {
+  if (ty.tag === 'TForall') return false;
+  if (ty.tag === 'TApp') return isMono(ty.left) && isMono(ty.right);
+  return true;
+};
+export const isSigma = (ty: Type): boolean =>
+  ty.tag === 'TForall';
+
+export const normalize = (ty: Type): Type => {
+  return ty;
+};
+export const normalizeAnnot = (a: Annot): Annot => {
+  return a;
 };

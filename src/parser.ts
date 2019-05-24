@@ -1,28 +1,6 @@
-import {
-  Term,
-  Var,
-  App,
-  abs,
-  PVar,
-  Hole,
-  Pat,
-  PWildcard,
-  Ann,
-  PAnn,
-  Let,
-  Lit,
-} from './terms';
-import {
-  Type,
-  TApp,
-  TVar,
-  TCon,
-  tforall,
-  tfunFrom,
-  tFun,
-} from './types';
-import { KCon, Kind, kfunFrom } from './kinds';
 import { Name } from './util';
+import { Type, tfunFrom, TApp, tFun, TCon, TVar, tforall, Annot } from './types';
+import { Term, Ann, Let, App, Lit, Var, absannot } from './terms';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -71,15 +49,15 @@ const parseNumber = (ts: string[]): number | null => {
   return n;
 };
 
-const parsePat = (ts: string[]): Pat[] | null => {
+const parsePat = (ts: string[]): [Name, Annot | null][] | null => {
   skipWhitespace(ts);
   if (skipSymbol(ts, '_')) {
     if (skipSymbol(ts, '_')) return err(`_ after _ in pattern`);
     if (parseName(ts)) return err(`hole not allowed in pattern`);
-    return [PWildcard];
+    return [['_', null]];
   }
   if (skipSymbol(ts, '(')) {
-    const pats: Pat[] = [];
+    const pats: [Name, Annot | null][] = [];
     let ty: Type | null = null;
     while (true) {
       skipWhitespace(ts);
@@ -98,17 +76,11 @@ const parsePat = (ts: string[]): Pat[] | null => {
     }
     if (pats.length === 0) return err(`empty pattern`);
     if (!ty) return err(`expected type in pattern`);
-    return pats.map(p => PAnn(p, ty as Type));
+    return pats.map(p => [p[0], Annot([], ty as Type)] as [Name, Annot | null]);
   }
   const x = parseName(ts);
   if (!x) return null;
-  return [PVar(x)];
-};
-
-const patToVar = (pat: Pat): Term => {
-  if (pat.tag === 'PVar') return Var(pat.name);
-  if (pat.tag === 'PWildcard') return err(`invalid var: _`);
-  return Ann(patToVar(pat.pat), pat.type);
+  return [[x, null]];
 };
 
 const parseExpr = (ts: string[]): Term | null => {
@@ -119,7 +91,7 @@ const parseExpr = (ts: string[]): Term | null => {
     else return err(`unclosed ( in app`);
   }
   if (skipSymbol(ts, '\\')) {
-    const args: Pat[] = [];
+    const args: [Name, Annot | null][] = [];
     while (true) {
       skipWhitespace(ts);
       if (ts.length === 0) return err(`no -> after \\`);
@@ -138,8 +110,8 @@ const parseExpr = (ts: string[]): Term | null => {
     }
     const body = parseTermTop(ts);
     if (!parens && body.tag === 'Ann')
-      return Ann(abs(args, body.term), body.type);
-    return abs(args, body);
+      return Ann(absannot(args, body.term), body.annot);
+    return absannot(args, body);
   }
   if (skipSymbol(ts, '"')) {
     const t = [];
@@ -163,27 +135,19 @@ const parseExpr = (ts: string[]): Term | null => {
     }
     return Lit(t.join(''));
   }
-  if (skipSymbol(ts, '_')) {
-    const name = parseName(ts);
-    if (!name) return err(`expected name after hole _`);
-    return Hole(name);
-  }
   const n = parseNumber(ts);
   if (n !== null) return Lit(n);
-  const pats = parsePat(ts);
+  const pats = parseName(ts);
   if (!pats) return null;
-  if (pats.length === 0) return err(`expected pattern`);
-  if (pats.length > 1) return err(`too many patterns`);
-  const pat = pats[0];
   skipWhitespace(ts);
   if (skipSymbol2(ts, '<-')) {
     const val = parseTermTop(ts, true);
     skipWhitespace(ts);
     if (!skipSymbol(ts, ';')) return err(`expected ; after <-`);
     const body = parseTermTop(ts);
-    return Let(pat, val, body);
+    return Let(pats, val, body);
   }
-  return patToVar(pat);
+  return Var(pats);
 };
 
 const parseAppTop = (ts: string[], underLet: boolean = false): Term => {
@@ -196,11 +160,11 @@ const parseAppTop = (ts: string[], underLet: boolean = false): Term => {
     if (ts[ts.length - 1] === ')') break;
     if (skipSymbol(ts, ':')) {
       const ty = parseTypeTop(ts);
-      return Ann(expr, ty);
+      return Ann(expr, Annot([], ty));
     }
     if (!underLet && skipSymbol(ts, ';')) {
       const rest = parseTermTop(ts);
-      return Let(PWildcard, expr, rest);
+      return Let('_', expr, rest);
     }
     if (ts[ts.length - 1] === ';') break;
     const expr2 = parseExpr(ts);
@@ -222,34 +186,12 @@ export const parseTerm = (str: string): Term => {
 };
 
 // types
-const parseTypePat = (ts: string[]): [Name, Kind | null][] => {
+const parseTypePat = (ts: string[]): Name[] => {
   skipWhitespace(ts);
-  if (skipSymbol(ts, '(')) {
-    const pats: Name[] = [];
-    let ki: Kind | null = null;
-    while (true) {
-      skipWhitespace(ts);
-      if (ts.length === 0) return err(`unclosed ( in pattern`);
-      if (skipSymbol(ts, ')')) break;
-      if (skipSymbol(ts, ':')) {
-        ts.push('(');
-        ki = parseKindR(ts);
-        if (!ki) return err(`invalid kind in forall pattern`);
-        break;
-      }
-      const arg = parseName(ts);
-      if (!arg) return err(`expected name in forall pattern`);
-      if (/[A-Z]/.test(arg[0])) return err(`constructor in forall`);
-      pats.push(arg);
-    }
-    if (pats.length === 0) return err(`empty forall pattern`);
-    if (!ki) return err(`expected kind in forall pattern`);
-    return pats.map(x => [x, ki] as [Name, Kind]);
-  }
   const x = parseName(ts);
-  if (!x) return err(`expected a pattern`);
+  if (!x) return err(`expected a name in forall`);
   if (/[A-Z]/.test(x[0])) return err(`constructor in forall`);
-  return [[x, null]];
+  return [x];
 };
 
 const parseTypeR = (ts: string[]): Type | null => {
@@ -262,7 +204,7 @@ const parseTypeR = (ts: string[]): Type | null => {
   const name = parseName(ts);
   if (!name) return null;
   if (name === 'forall') {
-    const args: [Name, Kind | null][] = [];
+    const args: Name[] = [];
     while (true) {
       skipWhitespace(ts);
       if (ts.length === 0) return err(`no . after forall`);
@@ -321,51 +263,4 @@ const parseTypeTop = (ts: string[]): Type => {
 
 export const parseType = (str: string): Type => {
   return parseTypeTop(str.split('').reverse());
-};
-
-// kinds
-const parseKCon = (ts: string[]): KCon | null => {
-  const x = parseName(ts);
-  if (!x || /[a-z]/.test(x[0])) return null;
-  return KCon(x);
-};
-
-const parseKindR = (ts: string[]): Kind | null => {
-  skipWhitespace(ts);
-  if (skipSymbol(ts, '(')) {
-    const es: Kind[] = [];
-    while (true) {
-      skipWhitespace(ts);
-      if (ts.length === 0) return err(`unclosed ( in kind`);
-      if (skipSymbol(ts, ')')) break;
-      const expr = parseKindTop(ts);
-      es.push(expr);
-    }
-    if (es.length === 0) return err(`empty kind app`);
-    if (es.length > 1) return err(`kind application does not exist`);
-    return es[0];
-  }
-  return parseKCon(ts);
-};
-
-const parseKindTop = (ts: string[]): Kind => {
-  skipWhitespace(ts);
-  const ki = parseKindR(ts);
-  if (!ki) return err(`expected kind`);
-  const ks: Kind[] = [ki];
-  while (true) {
-    skipWhitespace(ts);
-    if (ts.length === 0) break;
-    if (ts[ts.length - 1] === ')') break;
-    if (skipSymbol2(ts, '->')) {
-      const ki = parseKindR(ts);
-      if (!ki) return err(`expected kind after ->`);
-      ks.push(ki);
-    } else return err(`expected -> in kind`);
-  }
-  return kfunFrom(ks);
-};
-
-export const parseKind = (str: string): Kind => {
-  return parseKindTop(str.split('').reverse());
 };

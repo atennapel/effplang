@@ -1,38 +1,22 @@
-import { Type, showTy } from './types';
-import { Kind, kType, showKind, kRow, kfun } from './kinds';
-import { Name, clone } from './util';
+import { List } from './list';
+import { Name } from './util';
+import { Type } from './types';
 
-export interface TEnv {
-  global: { [key: string]: Type };
-  tcons: { [key: string]: Kind };
-}
-export const TEnv = (
-  global: { [key: string]: Type } = {},
-  tcons: { [key: string]: Kind } = {},
-): TEnv => ({ global, tcons });
-
-export const cloneEnv = (e: TEnv) =>
-  TEnv(clone(e.global), clone(e.tcons));
-
-export const showEnv = (env: TEnv) => {
-  const r: string[] = [];
-  for (let k in env.tcons)
-    r.push(`type ${k} : ${showKind(env.tcons[k])}`);
-  for (let k in env.global)
-    r.push(`${k} : ${showTy(env.global[k])}`);
-  return r.join('\n');
+export interface LTEnvEntry { name: Name, type: Type };
+export const LTEnvEntry = (name: Name, type: Type) => ({ name, type });
+export type LTEnv = List<LTEnvEntry>;
+export const lookupLTEnv = (name: Name, env: LTEnv): Type | null => {
+  let l = env;
+  while (l.tag === 'Cons') {
+    const c = l.head;
+    if (c.name === name) return c.type;
+    l = l.tail;
+  }
+  return null;
 };
 
-export const lookupTCon = (env: TEnv, x: Name): Kind | null =>
-  env.tcons[x] || null;
-
-const initialEnv = TEnv(
-  {},
-  {
-    '->': kfun(kType, kType, kType),
-    '{}': kRow,
-    Record: kfun(kRow, kType),
-  },
-);
-
-export const getInitialEnv = (): TEnv => cloneEnv(initialEnv);
+export interface TEnv {
+  vars: { [key: string]: Type };
+};
+export const lookupTEnv = (name: Name, genv: TEnv): Type | null =>
+  genv.vars[name];

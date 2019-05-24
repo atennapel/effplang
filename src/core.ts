@@ -1,7 +1,6 @@
 import { Name, impossible, freshId } from './util';
-import { Term, Pat } from './terms';
+import { Term } from './terms';
 import { MVal, showMVal } from './machine';
-import { List, mapList, toArray } from './list';
 
 export type CVal
   = CVVar
@@ -11,8 +10,7 @@ export type CVal
   | CVFloat
   | CVString
   | CVPair
-  | CVSum
-  | CVRecord;
+  | CVSum;
 export type CComp
   = CCRet
   | CCApp
@@ -20,9 +18,6 @@ export type CComp
   | CCAdd
   | CCAppend
   | CCSelect
-  | CCRecordSelect
-  | CCRecordInsert
-  | CCRecordRemove
   | CCCase
   | CCEq
   | CCShow;
@@ -84,13 +79,6 @@ export interface CVSum {
 export const CVSum = (label: 'L' | 'R', val: CVal): CVSum =>
   ({ tag: 'CVSum', label, val });
 
-export interface CVRecord {
-  readonly tag: 'CVRecord';
-  readonly val: List<[Name, CVal]>;
-}
-export const CVRecord = (val: List<[Name, CVal]>): CVRecord =>
-  ({ tag: 'CVRecord', val });
-
 export interface CCRet {
   readonly tag: 'CCRet';
   readonly val: CVal;
@@ -143,31 +131,6 @@ export interface CCSelect {
 export const CCSelect = (label: 'fst' | 'snd', val: CVal): CCSelect =>
   ({ tag: 'CCSelect', label, val });
 
-export interface CCRecordSelect {
-  readonly tag: 'CCRecordSelect';
-  readonly label: Name;
-  readonly val: CVal;
-}
-export const CCRecordSelect = (label: Name, val: CVal): CCRecordSelect =>
-  ({ tag: 'CCRecordSelect', label, val });
-
-export interface CCRecordInsert {
-  readonly tag: 'CCRecordInsert';
-  readonly label: Name;
-  readonly val: CVal;
-  readonly rec: CVal;
-}
-export const CCRecordInsert = (label: Name, val: CVal, rec: CVal): CCRecordInsert =>
-  ({ tag: 'CCRecordInsert', label, val, rec });
-
-export interface CCRecordRemove {
-  readonly tag: 'CCRecordRemove';
-  readonly label: Name;
-  readonly rec: CVal;
-}
-export const CCRecordRemove = (label: Name, rec: CVal): CCRecordRemove =>
-  ({ tag: 'CCRecordRemove', label, rec });
-
 export interface CCCase {
   readonly tag: 'CCCase';
   readonly val: CVal;
@@ -201,8 +164,6 @@ export const showCVal = (c: CVal): string => {
     return `(${showCVal(c.fst)}, ${showCVal(c.snd)})`;
   if (c.tag === 'CVSum') return `(${c.label} ${showCVal(c.val)})`;
   if (c.tag === 'CVEmbed') return `(#embed ${showMVal(c.val)})`;
-  if (c.tag === 'CVRecord')
-    return `{${toArray(c.val, (([l, v]) => `${l} = ${showCVal(v)}`)).join(', ')}}`;
   return impossible('showCVal');
 };
 export const showCComp = (c: CComp): string => {
@@ -219,12 +180,6 @@ export const showCComp = (c: CComp): string => {
     return `(${showCVal(c.left)} == ${showCVal(c.right)})`;
   if (c.tag === 'CCSelect')
     return `(.${c.label} ${showCVal(c.val)})`;
-  if (c.tag === 'CCRecordSelect')
-    return `${showCVal(c.val)}.${c.label}`;
-  if (c.tag === 'CCRecordInsert')
-    return `{${showCVal(c.rec)} | ${c.label} = ${showCVal(c.val)}}`;
-  if (c.tag === 'CCRecordRemove')
-    return `{${showCVal(c.rec)} | -${c.label}}`;
   if (c.tag === 'CCCase')
     return `(? ${showCVal(c.val)})`;
   if (c.tag === 'CCShow')
@@ -238,17 +193,13 @@ export const isComp = (t: Term): boolean =>
   t.tag === 'Ann' ? isComp(t.term) :
   t.tag === 'App' || t.tag === 'Let';
 export const isVal = (t: Term): boolean =>
+  t.tag === 'Ann' ? isVal(t.term) :
   t.tag === 'Var' || t.tag === 'Abs' || t.tag === 'Lit';
-export const patToCore = (p: Pat): Name => {
-  if (p.tag === 'PWildcard') return '_';
-  if (p.tag === 'PAnn') return patToCore(p.pat);
-  if (p.tag === 'PVar') return p.name;
-  return impossible('patToCore');
-};
 export const termToVal = (t: Term): CVal => {
+  if (t.tag === 'Ann') return termToVal(t.term);
   if (t.tag === 'Var') return CVVar(t.name);
   if (t.tag === 'Abs')
-    return CVAbs(patToCore(t.pat), termToComp(t.body));
+    return CVAbs(t.name, termToComp(t.body));
   if (t.tag === 'Lit')
     return typeof t.val === 'string' ? CVString(t.val) : CVFloat(t.val);
   return impossible('termToVal');
@@ -257,7 +208,7 @@ export const termToComp = (t: Term): CComp => {
   if (t.tag === 'Ann') return termToComp(t.term);
   if (isVal(t)) return CCRet(termToVal(t));
   if (t.tag === 'Let') {
-    const x = patToCore(t.pat);
+    const x = t.name;
     const a = termToComp(t.val);
     const b = termToComp(t.body);
     return CCSeq(x, a, b);

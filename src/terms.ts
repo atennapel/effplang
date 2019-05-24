@@ -1,6 +1,5 @@
 import { Name, impossible } from './util';
-import { Type, showTy } from './types';
-import { List, toArray } from './list';
+import { Annot, annotAny, showAnnot } from './types';
 
 export type Term
   = Var
@@ -8,10 +7,7 @@ export type Term
   | Abs
   | Let
   | Ann
-  | Hole
-  | Lit
-  | LitRecord
-  | RecordSelect;
+  | Lit;
 
 export interface Var {
   readonly tag: 'Var';
@@ -30,40 +26,48 @@ export const appFrom = (ts: Term[]): Term =>
   ts.reduce(App);
 export const app = (...ts: Term[]): Term =>
   appFrom(ts);
+export const flattenApp = (t: Term): { fn: Term, args: Term[] } => {
+  const args = [];
+  let c = t;
+  while (c.tag === 'App') {
+    args.push(c.right);
+    c = c.left;
+  }
+  return { fn: c, args: args.reverse() };
+};
 
 export interface Abs {
   readonly tag: 'Abs';
-  readonly pat: Pat;
+  readonly name: Name;
+  readonly annot: Annot;
   readonly body: Term;
 }
-export const Abs = (pat: Pat, body: Term): Abs =>
-  ({ tag: 'Abs', pat, body });
-export const abs = (ns: Pat[], body: Term) =>
-  ns.reduceRight((x, y) => Abs(y, x), body);
+export const Abs = (name: Name, annot: Annot, body: Term): Abs =>
+  ({ tag: 'Abs', name, annot, body });
+export const abs = (ns: Name[], body: Term) =>
+  ns.reduceRight((x, y) => Abs(y, annotAny, x), body);
+export const absannot = (ns: [Name, Annot | null][], body: Term) =>
+  ns.reduceRight((x, [n, t]) =>
+    t ? Abs(n, t, x) : Abs(n, annotAny, x), body);
 
 export interface Let {
   readonly tag: 'Let';
-  readonly pat: Pat;
+  readonly name: Name;
   readonly val: Term;
   readonly body: Term;
 }
-export const Let = (pat: Pat, val: Term, body: Term): Let =>
-  ({ tag: 'Let', pat, val, body });
+export const Let = (name: Name, val: Term, body: Term): Let =>
+  ({ tag: 'Let', name, val, body });
+export const lets = (ns: [Name, Term][], body: Term): Term =>
+  ns.reduceRight((b, [n, t]) => Let(n, t, b), body);
 
 export interface Ann {
   readonly tag: 'Ann';
   readonly term: Term;
-  readonly type: Type;
+  readonly annot: Annot;
 }
-export const Ann = (term: Term, type: Type): Ann =>
-  ({ tag: 'Ann', term, type });
-
-export interface Hole {
-  readonly tag: 'Hole';
-  readonly name: string;
-}
-export const Hole = (name: string): Hole =>
-  ({ tag: 'Hole', name });
+export const Ann = (term: Term, annot: Annot): Ann =>
+  ({ tag: 'Ann', term, annot });
 
 export interface Lit {
   readonly tag: 'Lit';
@@ -72,71 +76,23 @@ export interface Lit {
 export const Lit = (val: number | string): Lit =>
   ({ tag: 'Lit', val });
 
-export interface LitRecord {
-  readonly tag: 'LitRecord';
-  readonly val: List<[Name, Term]>;
-}
-export const LitRecord = (val: List<[Name, Term]>): LitRecord =>
-  ({ tag: 'LitRecord', val });
-
-export interface RecordSelect {
-  readonly tag: 'RecordSelect';
-  readonly label: Name;
-  readonly val: Term;
-}
-export const RecordSelect = (label: Name, val: Term): RecordSelect =>
-  ({ tag: 'RecordSelect', label, val });
-
-export type Pat
-  = PVar
-  | PWildcard
-  | PAnn;
-
-export interface PVar {
-  readonly tag: 'PVar';
-  readonly name: Name;
-}
-export const PVar = (name: Name): PVar => ({ tag: 'PVar', name });
-
-export interface PWildcard {
-  readonly tag: 'PWildcard';
-}
-export const PWildcard: PWildcard = ({ tag: 'PWildcard' });
-
-export interface PAnn {
-  readonly tag: 'PAnn';
-  readonly pat: Pat;
-  readonly type: Type;
-}
-export const PAnn = (pat: Pat, type: Type): PAnn =>
-  ({ tag: 'PAnn', pat, type });
-
-export const showPat = (p: Pat): string => {
-  if (p.tag === 'PVar') return p.name;
-  if (p.tag === 'PWildcard') return '_';
-  if (p.tag === 'PAnn')
-    return `(${showPat(p.pat)} : ${showTy(p.type)})`;
-  return impossible('showPat');
-};
-
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Abs')
-    return `(\\${showPat(t.pat)} -> ${showTerm(t.body)})`;
+    return t.annot === annotAny ?
+      `(\\${t.name} -> ${showTerm(t.body)})` :
+      `(\\(${t.name} : ${showAnnot(t.annot)}) -> ${showTerm(t.body)})`;
   if (t.tag === 'App')
     return `(${showTerm(t.left)} ${showTerm(t.right)})`;
   if (t.tag === 'Ann')
-    return `(${showTerm(t.term)} : ${showTy(t.type)})`;
+    return `(${showTerm(t.term)} : ${showAnnot(t.annot)})`;
   if (t.tag === 'Let')
-    return `(let ${showPat(t.pat)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
-  if (t.tag === 'Hole')
-    return `_${t.name}`;
+    return `(let ${t.name} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Lit')
     return typeof t.val === 'string' ?
       JSON.stringify(t.val) : `${t.val}`;
-  if (t.tag === 'LitRecord')
-    return `{${toArray(t.val, (([l, v]) => `${l} = ${showTerm(v)}`)).join(', ')}}`;
-  if (t.tag === 'RecordSelect')
-    return `(.${t.label} ${showTerm(t.val)})`;
   return impossible('showTerm');
 };
+
+export const isAnnot = (t: Term): boolean =>
+  (t.tag === 'Let' && isAnnot(t.body)) || t.tag === 'Ann';

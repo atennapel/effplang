@@ -165,11 +165,6 @@ const reifyVal = (genv: MGEnv, env: MLEnv, val: CVal): MVal | null => {
     if (!v) return null;
     return MSum(val.label, v);
   }
-  if (val.tag === 'CVRecord') {
-    const r = mapList(val.val, ([k, v]) => [k, reifyVal(genv, env, v)] as [Name, MVal | null]);
-    if (any(r, x => x === null)) return null;
-    return MRecord(r as List<[Name, MVal]>);
-  }
   if (val.tag === 'CVEmbed') return val.val;
   return null;
 };
@@ -217,25 +212,6 @@ const step = (genv: MGEnv, st: MState): MState | null => {
     if (!v || v.tag !== 'MPair') return null;
     const x = comp.label === 'fst' ? v.fst : v.snd;
     return MState(CCRet(CVEmbed(x)), env, cont);
-  }
-  if (comp.tag === 'CCRecordSelect') {
-    const v = reifyVal(genv, env, comp.val);
-    if (!v || v.tag !== 'MRecord') return null;
-    const x = lookupListKey(v.val, comp.label);
-    if (!x) return null;
-    return MState(CCRet(CVEmbed(x)), env, cont);
-  }
-  if (comp.tag === 'CCRecordInsert') {
-    const w = reifyVal(genv, env, comp.val);
-    if (!w) return null;
-    const v = reifyVal(genv, env, comp.rec);
-    if (!v || v.tag !== 'MRecord') return null;
-    return MState(CCRet(CVEmbed(MRecord(Cons([comp.label, w], v.val)))), env, cont);
-  }
-  if (comp.tag === 'CCRecordRemove') {
-    const v = reifyVal(genv, env, comp.rec);
-    if (!v || v.tag !== 'MRecord') return null;
-    return MState(CCRet(CVEmbed(MRecord(removeFirstKey(v.val, comp.label)))), env, cont);
   }
   if (comp.tag === 'CCCase') {
     const v = reifyVal(genv, env, comp.val);

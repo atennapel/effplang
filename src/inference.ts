@@ -1,243 +1,134 @@
-import { Term, showTerm, Pat, showPat } from './terms';
-import { inferKind } from './kindinference';
-import { kType, kRow } from './kinds';
+import { LTEnv, LTEnvEntry, TEnv, lookupLTEnv, lookupTEnv } from './env';
+import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun } from './types';
+import { Name, resetId, terr, impossible, zip } from './util';
+import { Cons, Nil } from './list';
+import { Term, Abs, flattenApp, showTerm, isAnnot } from './terms';
+import { generalize, instantiate, subsume, instantiateAnnot, matchTFuns, unify } from './unification';
 import { log } from './config';
-import { impossible, terr, resetId, Name } from './util';
-import { List, toArray, each, first, Cons, Nil, foldl, foldr, lookupListKey, fromArray } from './list';
-import { TEnv } from './env';
-import {
-  Type,
-  showTy,
-  TSkol,
-  TFun,
-  prune,
-  tmetas,
-  quantify,
-  freshTMeta,
-  TMeta,
-  tString,
-  tFloat,
-  tRowEmpty,
-  TRowExtends,
-  tRecord,
-  tapp,
-  flattenTRowExtends,
-} from './types';
-import {
-  unifyTFun,
-  subsCheck,
-  skolemise,
-  skolemCheck,
-  instantiate,
-  subsCheckRho,
-  unify,
-} from './unification';
 
-export type LTEnv = List<[string, Type]>;
-export const extendVar = (lenv: LTEnv, x: Name, t: Type): LTEnv =>
-    Cons([x, t] as [Name, Type], lenv);
-export const extendVars = (env: LTEnv, vs: [Name, Type][]): LTEnv =>
-  vs.reduce((l, kv) => Cons(kv, l), env);
-export const lookupVar = (
-  env: TEnv,
-  lenv: LTEnv,
-  x: Name,
-): Type | null => {
-  const t = first(lenv, ([k, _]) => x === k);
-  if (t) return t[1];
-  return env.global[x] || null;
-};
-export const skolemCheckEnv = (sk: TSkol[], env: LTEnv): void => {
-  each(env, ([_, t]) => skolemCheck(sk, prune(t)));
+type Expected = 'Inst' | 'Gen';
+const Inst = 'Inst';
+const Gen = 'Gen';
+const maybeInst = (ex: Expected, ty: Type) =>
+  ex === Inst ? instantiate(ty) : ty;
+const maybeGen = (ex: Expected, env: LTEnv, ty: Type) =>
+  ex === Gen ? generalize(env, ty) : ty;
+const maybeInstOrGen = (ex: Expected, env: LTEnv, ty: Type) =>
+  ex === Gen ? generalize(env, ty) : instantiate(ty);
+
+export const infer = (genv: TEnv, term: Term) => {
+  resetId();
+  const ty = synth(null, Gen, genv, Nil, term);
+  return prune(ty);
 };
 
-type Expected = Check | Infer;
-interface Check {
-  readonly tag: 'Check';
-  readonly type: Type;
-}
-const Check = (type: Type): Check => ({ tag: 'Check', type });
-interface Infer {
-  readonly tag: 'Infer';
-  type: Type | null;
-}
-const Infer = (): Infer => ({ tag: 'Infer', type: null });
-const showEx = (ex: Expected): string => {
-  if (ex.tag === 'Check') return `Check(${showTy(ex.type)})`;
-  if (ex.tag === 'Infer')
-    return `Infer(${ex.type ? showTy(ex.type) : '...'})`;
-  return impossible('showEx');
-};
+const extend = (n: Name, t: Type, e: LTEnv) =>
+  Cons(LTEnvEntry(n, t), e);
 
-const checkRho = (env: TEnv, lenv: LTEnv, term: Term, ty: Type): void =>
-  tcRho(env, lenv, term, Check(ty));
-const inferRho = (env: TEnv, lenv: LTEnv, term: Term): Type => {
-  const i = Infer();
-  tcRho(env, lenv, term, i);
-  if (!i.type)
-    return terr(`inferRho failed for ${showTerm(term)}`);
-  return i.type;
-};
-const tcRho = (env: TEnv, lenv: LTEnv, term: Term, ex: Expected): void => {
-  log(() => `tcRho ${showTerm(term)} with ${showEx(ex)}`)
+const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Term): Type => {
+  log(() => `synth ${showTerm(term)}`);
   if (term.tag === 'Var') {
-    const ty = lookupVar(env, lenv, term.name);
-    if (!ty) return terr(`undefined var ${showTerm(term)}`);
-    return instSigma(env, ty, ex);
-  }
-  if (term.tag === 'App') {
-    const ty = inferRho(env, lenv, term.left);
-    const { left: { right: left }, right } = unifyTFun(env, ty);
-    checkSigma(env, lenv, term.right, left);
-    return instSigma(env, right, ex);
-  }
-  if (term.tag === 'Abs') {
-    if (ex.tag === 'Check') {
-      const { left: { right: left }, right } =
-        unifyTFun(env, ex.type);
-      const bs = checkPat(env, term.pat, left);
-      const nenv = extendVars(lenv, bs);
-      return checkRho(env, nenv, term.body, right);
-    } else if (ex.tag === 'Infer') {
-      const [bs, ty] = inferPat(env, term.pat);
-      const nenv = extendVars(lenv, bs);
-      const bty = inferRho(env, nenv, term.body);
-      ex.type = TFun(ty, bty);
-      return;
-    }
+    const x = term.name;
+    const ty = lookupLTEnv(x, env) || lookupTEnv(x, genv);
+    if (!ty) return terr(`undefined var ${x}`);
+    return maybeInst(ex, ty);
   }
   if (term.tag === 'Let') {
-    const ty = inferSigma(env, lenv, term.val);
-    if (term.pat.tag === 'PVar') {
-      const nenv = extendVar(lenv, term.pat.name, ty);
-      return tcRho(env, nenv, term.body, ex);
-    } else {
-      const vars = checkPatSigma(env, term.pat, ty);
-      const nenv = extendVars(lenv, vars);
-      return tcRho(env, nenv, term.body, ex);
+    const ty = synth(null, Gen, genv, env, term.val);
+    return synth(prop, ex, genv, extend(term.name, ty, env), term.body);
+  }
+  if (term.tag === 'Abs') {
+    if (term.annot === annotAny) {
+      const { left: proparg } = propFun(prop);
+      return synth(
+        prop,
+        ex,
+        genv,
+        env,
+        Abs(term.name, proparg ? Annot([], proparg) : annotAny, term.body),
+      );
     }
+    const { right: propres, ex: exres } = propFun(prop);
+    const { tmetas: some, type: ty1 } = instantiateAnnot(term.annot);
+    const ty2 = synth(propres, exres, genv, extend(term.name, ty1, env), term.body);
+    for (let i = 0, l = some.length; i < l; i++) {
+      if (!isMono(prune(some[i])))
+        return terr(`unannotated parameters used polymorphically in ${showTerm(term)}`);
+    }
+    return maybeGen(ex, env, TFun(ty1, ty2)); 
   }
   if (term.tag === 'Ann') {
-    const type = inferKind(env, term.type);
-    checkSigma(env, lenv, term.term, type);
-    return instSigma(env, type, ex);
+    const { type } = instantiateAnnot(term.annot);
+    const ty = synth(
+      type,
+      isSigma(type) ? Gen : Inst,
+      genv,
+      env,
+      term.term,
+    );
+    subsume(type, ty);
+    return prune(type);
   }
-  if (term.tag === 'Hole') {
-    const ty = freshTMeta(kType);
-    holes.push([term.name, ty, lenv]);
-    instSigma(env, ty, ex);
-    return;
+  if (term.tag === 'App') {
+    const { fn, args } = flattenApp(term);
+    const fty = synth(null, Inst, genv, env, fn);
+    return inferApp(prop, ex, genv, env, fty, args);
   }
-  if (term.tag === 'Lit') {
-    instSigma(env, typeof term.val === 'string' ? tString : tFloat, ex);
-    return;
-  }
-  if (term.tag === 'LitRecord') {
-    const trecord = tapp(tRecord, foldr(term.val, (acc, [l, t]) =>
-      TRowExtends(l, inferSigma(env, lenv, t), acc), tRowEmpty as Type));
-    return instSigma(env, trecord, ex);
-  }
-  if (term.tag === 'RecordSelect') {
-    const ty = inferRho(env, lenv, term.val);
-    const flat = flattenTRowExtends(ty);
-    const rty = lookupListKey(fromArray(flat.labels), term.label);
-    if (rty) return instSigma(env, rty, ex);
-    const tv = freshTMeta(kType);
-    const tr = freshTMeta(kRow);
-    unify(env, flat.rest, TRowExtends(term.label, tv, tr));
-    return instSigma(env, tv, ex);
-  }
-  return impossible('tcRho');
+  return impossible(`synth`);
 };
 
-const checkPatSigma = (
-  env: TEnv,
-  pat: Pat,
-  ty: Type,
-): [Name, Type][] => {
-  const rho = instantiate(ty);
-  return checkPat(env, pat, rho);
+const inferApp = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, fty: Type, args: Term[]): Type => {
+  const { args: tpars, res } = matchTFuns(args.length, fty);
+  propApp(prop, res, tpars.length === args.length);
+  const pargs = zip(tpars, args);
+  subsumeInferN(genv, env, pargs);
+  const argsLeft = args.slice(tpars.length);
+  if (argsLeft.length === 0)
+    return maybeInstOrGen(ex, env, res);
+  return inferApp(prop, ex, genv, env, res, argsLeft);
 };
 
-const checkPat = (env: TEnv, pat: Pat, ty: Type): [Name, Type][] =>
-  tcPat(env, pat, Check(ty));
-const inferPat = (env: TEnv, pat: Pat): [[Name, Type][], Type] => {
-  const i = Infer();
-  const bs = tcPat(env, pat, i);
-  if (!i.type)
-    return terr(`inferPat failed for ${showPat(pat)}`);
-  return [bs, i.type];
+const subsumeInferN = (genv: TEnv, env: LTEnv, tps: [Type, Term][]) => {
+  if (tps.length === 0) return;
+  const [tpar_, arg] = pickArg(tps);
+  const tpar = prune(tpar_);
+  const targ = synth(tpar, isSigma(tpar) ? Gen : Inst, genv, env, arg);
+  if (isAnnot(arg)) unify(tpar, targ);
+  else subsume(tpar, targ);
+  subsumeInferN(genv, env, tps);
 };
-const tcPat = (
-  env: TEnv,
-  pat: Pat,
-  ex: Expected
-): [Name, Type][] => {
-  if (pat.tag === 'PWildcard') {
-    if (ex.tag === 'Infer') ex.type = freshTMeta(kType);
-    return [];
+
+const propApp = (prop: Type | null, ty: Type, fapp: boolean): void => {
+  const isuni = ty.tag === 'TMeta' && !ty.type;
+  if (prop && fapp && !isuni) {
+    const rho = instantiate(prop);
+    subsume(rho, ty);
   }
-  if (pat.tag === 'PVar') {
-    if (ex.tag === 'Check') return [[pat.name, ex.type]];
-    const ty = freshTMeta(kType);
-    ex.type = ty;
-    return [[pat.name, ty]];
+};
+const propFun = (prop: Type | null): { left: Type | null, right: Type | null, ex: Expected } => {
+  if (!prop) return { left: null, right: null, ex: Inst };
+  const rho = prune(instantiate(prop));
+  if (isTFun(rho))
+    return { left: rho.left.right, right: rho.right, ex: isSigma(rho.right) ? Gen : Inst };
+  return { left: null, right: null, ex: Inst };
+};
+
+const pickArg = (tps: [Type, Term][]): [Type, Term] => {
+  for (let i = 0, l = tps.length; i < l; i++) {
+    const targ = tps[i];
+    if (isAnnot(targ[1])) {
+      tps.splice(i, 1);
+      return targ;
+    }
   }
-  if (pat.tag === 'PAnn') {
-    const ty = inferKind(env, pat.type);
-    const bs = checkPat(env, pat.pat, ty);
-    instPatSigma(env, ty, ex);
-    return bs;
+  for (let i = 0, l = tps.length; i < l; i++) {
+    const targ = tps[i];
+    if (prune(targ[0]).tag !== 'TMeta') {
+      tps.splice(i, 1);
+      return targ;
+    }
   }
-  return impossible('tcPat');
-};
-
-const instPatSigma = (env: TEnv, ty: Type, ex: Expected): void => {
-  if (ex.tag === 'Check')
-    return subsCheck(env, ex.type, ty);
-  ex.type = ty;
-};
-
-const tmetasEnv = (
-  env: LTEnv,
-  free: TMeta[] = [],
-  tms: TMeta[] = [],
-): TMeta[] => {
-  each(env, ([_, t]) => tmetas(prune(t), free, tms));
-  return tms;
-};
-
-const inferSigma = (env: TEnv, lenv: LTEnv, term: Term): Type => {
-  const ty = inferRho(env, lenv, term);
-  const etms = tmetasEnv(lenv);
-  const tms = tmetas(prune(ty), etms);
-  return quantify(tms, ty);
-};
-
-const checkSigma = (env: TEnv, lenv: LTEnv, term: Term, ty: Type): void => {
-  const sk: TSkol[] = [];
-  const rho = skolemise(ty, sk);
-  checkRho(env, lenv, term, rho);
-  skolemCheck(sk, prune(ty));
-  skolemCheckEnv(sk, lenv);
-};
-
-const instSigma = (env: TEnv, ty: Type, ex: Expected): void => {
-  if (ex.tag === 'Check')
-    return subsCheckRho(env, ty, ex.type);
-  ex.type = instantiate(ty);
-};
-
-let holes: [string, Type, List<[string, Type]>][];
-export const infer = (env: TEnv, term: Term, lenv: LTEnv = Nil): Type => {
-  log(() => `infer ${showTerm(term)}`);
-  resetId();
-  holes = [];
-  const nty = inferSigma(env, lenv, term);
-  const ty = prune(nty);
-  if (holes.length > 0)
-    return terr(`${showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) =>
-      `_${n} : ${showTy(prune(t))}\n${toArray(e, ([x, t]) =>
-        `${x} : ${showTy(prune(t))}`).join('\n')}`).join('\n\n')}`);
-  return ty;
+  const ret = tps[0];
+  tps.splice(0, 1);
+  return ret;
 };
