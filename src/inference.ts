@@ -1,5 +1,5 @@
 import { LTEnv, LTEnvEntry, TEnv, lookupLTEnv, lookupTEnv } from './env';
-import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat } from './types';
+import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat, showType } from './types';
 import { Name, resetId, terr, impossible, zip } from './util';
 import { Cons, Nil } from './list';
 import { Term, Abs, flattenApp, showTerm, isAnnot } from './terms';
@@ -74,11 +74,14 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
 };
 
 const inferApp = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, fty: Type, args: Term[]): Type => {
+  log(() => `inferApp ${showType(fty)} with ${args.map(showTerm).join(' ')}`);
   const { args: tpars, res } = matchTFuns(args.length, fty);
+  log(() => `${tpars.map(showType).join(' ')} ; ${showType(res)}`);
   propApp(prop, res, tpars.length === args.length);
   const pargs = zip(tpars, args);
   subsumeInferN(genv, env, pargs);
   const argsLeft = args.slice(tpars.length);
+  log(() => `argsLeft: ${argsLeft.map(showTerm).join(' ')}`);
   if (argsLeft.length === 0)
     return maybeInstOrGen(ex, env, res);
   return inferApp(prop, ex, genv, env, res, argsLeft);

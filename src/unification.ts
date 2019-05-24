@@ -146,8 +146,10 @@ export const matchTFun = (ty: Type): { left: Type, right: Type } => {
   return terr(`applying non-function: ${showType(rho)}`);
 };
 export const matchTFuns = (n: number, ty: Type): { args: Type[], res: Type } => {
-  let c = prune(ty);
   const args: Type[] = [];
+  const { left, right } = matchTFun(ty);
+  args.push(left);
+  let c = prune(right);
   while (args.length < n && isTFun(c)) {
     args.push(c.left.right);
     c = c.right;

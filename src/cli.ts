@@ -1,6 +1,6 @@
 import { TVar, TCon, tforall, tfun, tapp, tString, tFloat, showType } from './types';
 import { TEnv } from './env';
-import { setConfig } from './config';
+import { setConfig, config } from './config';
 import { showTerm } from './terms';
 import { parseTerm } from './parser';
 import { infer } from './inference';
@@ -59,7 +59,7 @@ const genv: MGEnv = {
   case: MClos(CVAbs('s', CCCase(CVVar('s'))), Nil),
 };
 
-setConfig({});
+setConfig({ debug: false });
 
 if (process.argv[2]) {
   try {
@@ -82,7 +82,11 @@ if (process.argv[2]) {
   process.stdin.setEncoding('utf8');
   function input() {
     readline.question('> ', function(sc: string) {
-      try {
+      if (sc === ':debug') {
+        const d = !config.debug;
+        setConfig({ debug: d });
+        console.log(`debug: ${d}`);
+      } else try {
         const term = parseTerm(sc);
         console.log(showTerm(term));
         const ty = infer(tenv, term);
