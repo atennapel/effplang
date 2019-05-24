@@ -1,4 +1,4 @@
-import { Name, Id, impossible, freshId } from './util';
+import { Name, Id, impossible, freshId, terr } from './util';
 import { log } from './config';
 
 export type Type
@@ -255,9 +255,47 @@ export const isMono = (ty: Type): boolean => {
 export const isSigma = (ty: Type): boolean =>
   ty.tag === 'TForall';
 
-export const normalize = (ty: Type): Type => {
+export const normalizeR = (ty: Type, tvs: Name[] = []): Type => {
+  if (ty.tag === 'TVar') {
+    if (tvs.indexOf(ty.name) < 0) tvs.push(ty.name);
+    return ty;
+  }
+  if (ty.tag === 'TApp') {
+    const t1 = normalizeR(ty.left, tvs);
+    const t2 = normalizeR(ty.right, tvs);
+    return TApp(t1, t2);
+  }
+  if (ty.tag === 'TForall') {
+    if (ty.type.tag === 'TForall')
+      return normalizeR(TForall(ty.names.concat(ty.type.names), ty.type.type), tvs);
+    const body = normalizeR(ty.type, tvs);
+    const bound: Name[] = [];
+    const unbound: Name[] = [];
+    for (let i = 0, l = tvs.length; i < l; i++) {
+      const c = tvs[i];
+      if (ty.names.indexOf(c) >= 0) bound.push(c);
+      else unbound.push(c);
+    }
+    tvs.splice(0, tvs.length, ...unbound);
+    return TForall(bound, body);
+  }
   return ty;
 };
+export const normalize = (ty: Type): Type => {
+  const tvs: Name[] = [];
+  const rty = normalizeR(ty, tvs);
+  if (tvs.length > 0)
+    return terr(`unbound type variables in ${showType(ty)}`);
+  return rty;
+};
 export const normalizeAnnot = (a: Annot): Annot => {
-  return a;
+  const tvs: Name[] = [];
+  const ty = normalizeR(a.type, tvs);
+  const bound: Name[] = [];
+  for (let i = 0, l = tvs.length; i < l; i++) {
+    const c = tvs[i];
+    if (a.names.indexOf(c) >= 0) bound.push(c);
+    else return terr(`unbound type variable in annotation ${showAnnot(a)}`);
+  }
+  return Annot(bound, ty);
 };

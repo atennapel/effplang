@@ -1,1 +1,5 @@
-console.log(42);
+/**
+ * TODO:
+ * - kinds
+ * - row polymorphism
+ */

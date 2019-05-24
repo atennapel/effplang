@@ -5,6 +5,7 @@ import { each } from './list';
 import { terr } from './util';
 
 export const instantiate = (ty: Type): Type => {
+  log(() => `instantiate ${showType(ty)}`);
   const t = prune(ty);
   if (t.tag !== 'TForall') return t;
   const map: TVMap = {};
@@ -27,6 +28,7 @@ export const instantiateAnnot = (a_: Annot): { tmetas: TMeta[], type: Type } => 
 };
 
 export const skolemize = (ty: Type): { sks: TSkol[], type: Type } => {
+  log(() => `skolemize ${showType(ty)}`);
   const t = prune(ty);
   if (t.tag !== 'TForall') return { sks: [], type: t };
   const sks: TSkol[] = [];
@@ -74,6 +76,7 @@ export const tmetasEnv = (
   return tms;
 };
 export const generalize = (lenv: LTEnv, ty: Type): Type => {
+  log(() => `generalize ${showType(ty)}`);
   const etms = tmetasEnv(lenv);
   const pty = prune(ty);
   const tms = tmetas(pty, etms);

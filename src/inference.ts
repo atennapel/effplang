@@ -76,14 +76,14 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
 const inferApp = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, fty: Type, args: Term[]): Type => {
   log(() => `inferApp ${showType(fty)} with ${args.map(showTerm).join(' ')}`);
   const { args: tpars, res } = matchTFuns(args.length, fty);
-  log(() => `${tpars.map(showType).join(' ')} ; ${showType(res)}`);
+  // log(() => `${tpars.map(showType).join(' ')} ; ${showType(res)}`);
   propApp(prop, res, tpars.length === args.length);
   const pargs = zip(tpars, args);
   subsumeInferN(genv, env, pargs);
   const argsLeft = args.slice(tpars.length);
-  log(() => `argsLeft: ${argsLeft.map(showTerm).join(' ')}`);
   if (argsLeft.length === 0)
     return maybeInstOrGen(ex, env, res);
+  // log(() => `argsLeft: ${argsLeft.map(showTerm).join(' ')}`);
   return inferApp(prop, ex, genv, env, res, argsLeft);
 };
 
