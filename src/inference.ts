@@ -43,7 +43,7 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
       term = Abs(term.name, proparg ? Annot([], proparg) : annotAny, term.body);
     }
     const { right: propres, ex: exres } = propFun(prop);
-    const { tmetas: some, type: ty1 } = instantiateAnnot(term.annot);
+    const { tmetas: some, type: ty1 } = instantiateAnnot(genv, term.annot);
     const ty2 = synth(propres, exres, genv, extend(term.name, ty1, env), term.body);
     for (let i = 0, l = some.length; i < l; i++) {
       if (!isMono(prune(some[i])))
@@ -52,7 +52,7 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
     return maybeGen(ex, env, TFun(ty1, ty2)); 
   }
   if (term.tag === 'Ann') {
-    const { type } = instantiateAnnot(term.annot);
+    const { type } = instantiateAnnot(genv, term.annot);
     const ty = synth(
       type,
       isSigma(type) ? Gen : Inst,
@@ -60,7 +60,7 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
       env,
       term.term,
     );
-    subsume(type, ty);
+    subsume(genv, type, ty);
     return prune(type);
   }
   if (term.tag === 'App') {
@@ -77,7 +77,7 @@ const inferApp = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, fty: 
   log(() => `inferApp ${showType(fty)} with ${args.map(showTerm).join(' ')}`);
   const { args: tpars, res } = matchTFuns(args.length, fty);
   // log(() => `${tpars.map(showType).join(' ')} ; ${showType(res)}`);
-  propApp(prop, res, tpars.length === args.length);
+  propApp(genv, prop, res, tpars.length === args.length);
   const pargs = zip(tpars, args);
   subsumeInferN(genv, env, pargs);
   const argsLeft = args.slice(tpars.length);
@@ -92,16 +92,16 @@ const subsumeInferN = (genv: TEnv, env: LTEnv, tps: [Type, Term][]) => {
   const [tpar_, arg] = pickArg(tps);
   const tpar = prune(tpar_);
   const targ = synth(tpar, isSigma(tpar) ? Gen : Inst, genv, env, arg);
-  if (isAnnot(arg)) unify(tpar, targ);
-  else subsume(tpar, targ);
+  if (isAnnot(arg)) unify(genv, tpar, targ);
+  else subsume(genv, tpar, targ);
   subsumeInferN(genv, env, tps);
 };
 
-const propApp = (prop: Type | null, ty: Type, fapp: boolean): void => {
+const propApp = (genv: TEnv, prop: Type | null, ty: Type, fapp: boolean): void => {
   const isuni = ty.tag === 'TMeta' && !ty.type;
   if (prop && fapp && !isuni) {
     const rho = instantiate(prop);
-    subsume(rho, ty);
+    subsume(genv, rho, ty);
   }
 };
 const propFun = (prop: Type | null): { left: Type | null, right: Type | null, ex: Expected } => {

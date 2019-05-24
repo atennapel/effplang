@@ -1,5 +1,5 @@
 import { TVar, TCon, tforall, tfun, tapp, tString, tFloat, showType } from './types';
-import { TEnv } from './env';
+import { TEnv, initialEnv } from './env';
 import { setConfig, config } from './config';
 import { showTerm } from './terms';
 import { parseTerm } from './parser';
@@ -8,6 +8,7 @@ import { termToComp, showCComp, CVAbs, CCApp, CVVar, CCSeq, CCRet, CCAdd, CCAppe
 import { runToVal, showMVal, MGEnv, MClos, MUnit } from './machine';
 import { Nil } from './list';
 import { optimizeComp } from './optimizer';
+import { kType, kfun } from './kinds';
 
 const tv = TVar;
 
@@ -16,16 +17,20 @@ const tUnit = TCon('Unit');
 const tPair = TCon('Pair');
 const tSum = TCon('Sum');
 
-const tenv: TEnv = { vars: {} };
+const tenv = initialEnv();
 
+tenv.tcons.Void = kType;
 tenv.vars.void = tforall(['t'], tfun(tVoid, tv('t')));
 
+tenv.tcons.Unit = kType;
 tenv.vars.Unit = tUnit;
 
+tenv.tcons.Pair = kfun(kType, kType, kType);
 tenv.vars.Pair = tforall(['a', 'b'], tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))));
 tenv.vars.fst = tforall(['a', 'b'], tfun(tapp(tPair, tv('a'), tv('b')), tv('a')));
 tenv.vars.snd = tforall(['a', 'b'], tfun(tapp(tPair, tv('a'), tv('b')), tv('b')));
 
+tenv.tcons.Sum = kfun(kType, kType, kType);
 tenv.vars.L = tforall(['a', 'b'], tfun(tv('a'), tapp(tSum, tv('a'), tv('b'))));
 tenv.vars.R = tforall(['a', 'b'], tfun(tv('b'), tapp(tSum, tv('a'), tv('b'))));
 tenv.vars.case = tforall(['a', 'b', 'r'], tfun(tapp(tSum, tv('a'), tv('b')), tfun(tv('a'), tv('r')), tfun(tv('b'), tv('r')), tv('r')));
@@ -60,7 +65,7 @@ const genv: MGEnv = {
   case: MClos(CVAbs('s', CCCase(CVVar('s'))), Nil),
 };
 
-setConfig({ debug: false });
+setConfig({ debug: true, showKinds: true });
 
 if (process.argv[2]) {
   try {
@@ -89,6 +94,10 @@ if (process.argv[2]) {
         const d = !config.debug;
         setConfig({ debug: d });
         console.log(`debug: ${d}`);
+      } else if (sc === ':kinds') {
+        const k = !config.showKinds;
+        setConfig({ showKinds: k });
+        console.log(`kinds: ${k}`);
       } else try {
         const term = parseTerm(sc);
         console.log(showTerm(term));

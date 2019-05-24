@@ -1,5 +1,8 @@
-import { Name, Id, impossible, freshId, terr } from './util';
-import { log } from './config';
+import { Name, Id, impossible, freshId, terr, indexOf } from './util';
+import { Kind, kType, showKind } from './kinds';
+import { TEnv } from './env';
+import { inferKind } from './kindinference';
+import { config, log } from './config';
 
 export type Type
   = TForall
@@ -11,16 +14,19 @@ export type Type
 
 export interface TForall {
   readonly tag: 'TForall';
-  readonly names: Name[];
+  readonly names: [Name, Kind | null][];
   readonly type: Type;
 }
 export const TForall = (
-  names: Name[],
+  names: [Name, Kind | null][],
   type: Type
 ): TForall => ({ tag: 'TForall', names, type });
-export const tforall = (ns: Name[], type: Type) => {
+export const tforall = (ns: (Name | [Name, Kind | null])[], type: Type) => {
   if (ns.length === 0) return type;
-  return TForall(ns, type);
+  return TForall(
+    ns.map(x => Array.isArray(x) ? x : [x, null]),
+    type,
+  );
 };
 
 export interface TApp {
@@ -63,25 +69,28 @@ export interface TSkol {
   readonly tag: 'TSkol';
   readonly name: Name;
   readonly id: Id;
+  readonly kind: Kind;
 }
-export const TSkol = (name: Name, id: Id): TSkol =>
-  ({ tag: 'TSkol', name, id });
-export const freshTSkol = (name: Name) =>
-  TSkol(name, freshId());
+export const TSkol = (name: Name, id: Id, kind: Kind): TSkol =>
+  ({ tag: 'TSkol', name, id, kind });
+export const freshTSkol = (name: Name, kind: Kind) =>
+  TSkol(name, freshId(), kind);
 
 export interface TMeta {
   readonly tag: 'TMeta';
   readonly id: Id;
+  readonly kind: Kind;
   name: Name | null;
   type: Type | null;
 }
 export const TMeta = (
   id: Id,
-  name: Name | null = null
+  kind: Kind,
+  name: Name | null = null,
 ): TMeta =>
-  ({ tag: 'TMeta', id, name, type: null });
-export const freshTMeta = (name: Name | null = null) =>
-  TMeta(freshId(), name);
+  ({ tag: 'TMeta', id, kind, name, type: null });
+export const freshTMeta = (kind: Kind, name: Name | null = null) =>
+  TMeta(freshId(), kind, name);
 
 export const tFloat = TCon('Float');
 export const tString = TCon('String');
@@ -119,16 +128,19 @@ export const flattenTFun = (t: Type): Type[] => {
 };
 
 export interface Annot {
-  readonly names: Name[];
+  readonly names: [Name, Kind][];
   readonly type: Type;
 }
-export const Annot = (names: Name[], type: Type): Annot =>
+export const Annot = (names: [Name, Kind][], type: Type): Annot =>
   ({ names, type });
-export const annotAny = Annot(['t'], TVar('t'));
+export const annotAny = Annot([['t', kType]], TVar('t'));
 
 export const showAnnot = (annot: Annot): string =>
   annot.names.length === 0 ? showType(annot.type) :  
-    `exists ${annot.names.join(' ')}. ${showType(annot.type)}`;
+    `exists ${annot.names.map(([x, k]) =>
+      k && config.showKinds ?
+        `(${x} : ${showKind(k)})` :
+        `${x}`).join(' ')}. ${showType(annot.type)}`;
 
 export const showType = (t: Type): string => {
   if (t.tag === 'TCon') return t.name;
@@ -137,8 +149,10 @@ export const showType = (t: Type): string => {
     return `?${t.name ? `${t.name}\$` : ''}${t.id}`;
   if (t.tag === 'TSkol') return `'${t.name}\$${t.id}`;
   if (t.tag === 'TForall')
-    return `forall ${t.names.map((tv, i) =>
-      `${tv}`).join(' ')}. ${showType(t.type)}`;
+    return `forall ${t.names.map(([x, k]) =>
+      k && config.showKinds ?
+        `(${x} : ${showKind(k)})` :
+        `${x}`).join(' ')}. ${showType(t.type)}`;
   if (isTFun(t))
     return flattenTFun(t)
       .map(t => isTFun(t) || t.tag === 'TForall' ?
@@ -160,7 +174,7 @@ export const substTVar = (map: TVMap, ty: Type): Type => {
   if (ty.tag === 'TForall') {
     const { names, type } = ty;
     const m: TVMap = {};
-    for (let k in map) if (names.indexOf(k) < 0) m[k] = map[k];
+    for (let k in map) if (indexOf(names, ([l, _]) => k === l) < 0) m[k] = map[k];
     return TForall(names, substTVar(m, type));
   }
   return ty;
@@ -240,7 +254,7 @@ export const tbinders = (ty: Type, bs: Name[] = []): Name[] => {
     const names = ty.names;
     for (let i = 0, l = names.length; i < l; i++) {
       const x = names[i];
-      if (bs.indexOf(x) < 0) bs.push(x);
+      if (bs.indexOf(x[0]) < 0) bs.push(x[0]);
     }
     return tbinders(ty.type, bs);
   }
@@ -269,11 +283,12 @@ export const normalizeR = (ty: Type, tvs: Name[] = []): Type => {
     if (ty.type.tag === 'TForall')
       return normalizeR(TForall(ty.names.concat(ty.type.names), ty.type.type), tvs);
     const body = normalizeR(ty.type, tvs);
-    const bound: Name[] = [];
+    const bound: [Name, Kind][] = [];
     const unbound: Name[] = [];
     for (let i = 0, l = tvs.length; i < l; i++) {
       const c = tvs[i];
-      if (ty.names.indexOf(c) >= 0) bound.push(c);
+      const j = indexOf(ty.names, ([l, _]) => l === c);
+      if (j >= 0) bound.push([ty.names[j][0], ty.names[j][1] || kType]);
       else unbound.push(c);
     }
     tvs.splice(0, tvs.length, ...unbound);
@@ -281,21 +296,31 @@ export const normalizeR = (ty: Type, tvs: Name[] = []): Type => {
   }
   return ty;
 };
-export const normalize = (ty: Type): Type => {
+export const normalize = (env: TEnv, ty: Type): Type => {
   const tvs: Name[] = [];
   const rty = normalizeR(ty, tvs);
   if (tvs.length > 0)
     return terr(`unbound type variables in ${showType(ty)}`);
-  return rty;
+  return inferKind(env, rty);
 };
-export const normalizeAnnot = (a: Annot): Annot => {
+export const normalizeAnnot = (env: TEnv, a: Annot): Annot => {
+  log(() => `normalizeAnnot ${showAnnot(a)}`);
   const tvs: Name[] = [];
   const ty = normalizeR(a.type, tvs);
-  const bound: Name[] = [];
+  log(() => `normalizeR ${showType(ty)}`);
+  const bound: [Name, Kind][] = [];
   for (let i = 0, l = tvs.length; i < l; i++) {
     const c = tvs[i];
-    if (a.names.indexOf(c) >= 0) bound.push(c);
+    const j = indexOf(a.names, ([l, _]) => l === c);
+    if (j >= 0) bound.push(a.names[j]);
     else return terr(`unbound type variable in annotation ${showAnnot(a)}`);
   }
-  return Annot(bound, ty);
+  const map: TVMap = {};
+  for (let i = 0, l = bound.length; i < l; i++)
+    map[bound[i][0]] = freshTSkol(bound[i][0], bound[i][1]);
+  const sty = substTVar(map, ty);
+  const kty = inferKind(env, sty);
+  const nanno = Annot(bound, kty);
+  log(() => `result ${showAnnot(nanno)}`);
+  return nanno;
 };

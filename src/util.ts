@@ -25,3 +25,10 @@ export const zip = <A, B>(a: A[], b: B[]): [A, B][] => {
     r[i] = [a[i], b[i]];
   return r;
 };
+
+export const indexOf = <T>(a: T[], f: (v: T) => boolean): number => {
+  for (let i = 0, l = a.length; i < l; i++) {
+    if (f(a[i])) return i;
+  }
+  return -1;
+};
