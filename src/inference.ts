@@ -1,5 +1,5 @@
 import { LTEnv, LTEnvEntry, TEnv, lookupLTEnv, lookupTEnv } from './env';
-import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun } from './types';
+import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat } from './types';
 import { Name, resetId, terr, impossible, zip } from './util';
 import { Cons, Nil } from './list';
 import { Term, Abs, flattenApp, showTerm, isAnnot } from './terms';
@@ -40,13 +40,7 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
   if (term.tag === 'Abs') {
     if (term.annot === annotAny) {
       const { left: proparg } = propFun(prop);
-      return synth(
-        prop,
-        ex,
-        genv,
-        env,
-        Abs(term.name, proparg ? Annot([], proparg) : annotAny, term.body),
-      );
+      term = Abs(term.name, proparg ? Annot([], proparg) : annotAny, term.body);
     }
     const { right: propres, ex: exres } = propFun(prop);
     const { tmetas: some, type: ty1 } = instantiateAnnot(term.annot);
@@ -74,6 +68,8 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
     const fty = synth(null, Inst, genv, env, fn);
     return inferApp(prop, ex, genv, env, fty, args);
   }
+  if (term.tag === 'Lit')
+    return typeof term.val === 'string' ? tString : tFloat;
   return impossible(`synth`);
 };
 
