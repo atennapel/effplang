@@ -230,13 +230,18 @@ const step = (genv: MGEnv, st: MState): MState | null => {
   }
   return null;
 };
+
+export let amountOfSteps = 0;
+export const resetAmountOfSteps = () => { amountOfSteps = 0 };
 const steps = (genv: MGEnv, st: MState): MState => {
+  resetAmountOfSteps();
   let s: MState | null = st;
   while (true) {
     const p: MState = s;
     log(() => showMState(p));
     s = step(genv, s);
     if (!s) return p; 
+    amountOfSteps++;
   }
 };
 

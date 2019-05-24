@@ -5,7 +5,7 @@ import { showTerm } from './terms';
 import { parseTerm } from './parser';
 import { infer } from './inference';
 import { termToComp, showCComp, CVAbs, CCApp, CVVar, CCSeq, CCRet, CCAdd, CCAppend, CCEq, CCShow, CVPair, CCSelect, CVSum, CCCase } from './core';
-import { runToVal, showMVal, MGEnv, MClos, MUnit } from './machine';
+import { runToVal, showMVal, MGEnv, MClos, MUnit, amountOfSteps } from './machine';
 import { Nil } from './list';
 import { optimizeComp } from './optimizer';
 import { kType, kfun } from './kinds';
@@ -100,6 +100,8 @@ if (process.argv[2]) {
         const k = !config.showKinds;
         setConfig({ showKinds: k });
         console.log(`kinds: ${k}`);
+      } else if (sc === ':steps') {
+        console.log(`steps: ${amountOfSteps}`);
       } else try {
         const term = parseTerm(sc);
         console.log(showTerm(term));
