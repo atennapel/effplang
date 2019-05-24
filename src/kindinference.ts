@@ -9,6 +9,8 @@ import {
   TVMap,
   freshTSkol,
   showType,
+  showAnnot,
+  Annot,
 } from './types';
 import {
   Kind,
@@ -20,6 +22,7 @@ import {
   kType,
 } from './kinds';
 import { log } from './config';
+import { List, Nil, lookupListKey, Cons } from './list';
 
 const bindKMeta = (x: KMeta, k: Kind): void => {
   if (x.kind) return unifyKind(x.kind, k);
@@ -42,35 +45,39 @@ const unifyKind = (a: Kind, b: Kind): void => {
   return terr(`failed to unify kinds: ${showKind(a)} ~ ${showKind(b)}`);
 };
 
-const inferKindR = (env: TEnv, t: Type): [Kind, Type] => {
+type TVarEnv = List<[Name, Kind]>;
+const inferKindR = (env: TEnv, t: Type, tvars: TVarEnv): [Kind, Type] => {
   if (t.tag === 'TMeta') return [t.kind, t];
-  if (t.tag === 'TVar')
-    return terr(`tvar ${showType(t)} in inferKindR`);
   if (t.tag === 'TSkol') return [t.kind, t];
+  if (t.tag === 'TVar') {
+    const k = lookupListKey(tvars, t.name);
+    if (!k) return terr(`undefined tvar ${showType(t)} in inferKindR`);
+    return [k, t];
+  }
   if (t.tag === 'TCon') {
     const k = lookupTCon(t.name, env);
     if (!k) return terr(`undefined type constructor ${showType(t)}`);
     return [k, t];
   }
   if (t.tag === 'TApp') {
-    const [l, tl] = inferKindR(env, t.left);
-    const [r, tr] = inferKindR(env, t.right);
+    const [l, tl] = inferKindR(env, t.left, tvars);
+    const [r, tr] = inferKindR(env, t.right, tvars);
     const km = freshKMeta();
     unifyKind(l, KFun(r, km));
     return [km, TApp(tl, tr)];
   }
   if (t.tag === 'TForall') {
     const { names, type } = t;
-    const m: TVMap = {};
     const nks: [Name, Kind][] = Array(names.length);
+    let ntvs = tvars;
     for (let i = 0, l = names.length; i < l; i++) {
       const c = names[i];
       const ki = c[1] || freshKMeta();
-      const k = freshTSkol(c[0], ki);
-      m[c[0]] = k;
-      nks[i] = [c[0], ki];
+      const kv: [Name, Kind] = [c[0], ki];
+      ntvs = Cons(kv, ntvs);
+      nks[i] = kv;
     }
-    const [km, b] = inferKindR(env, substTVar(m, type));
+    const [km, b] = inferKindR(env, type, ntvs);
     return [km, TForall(nks, b)];
   }
   return impossible('inferKindR');
@@ -100,17 +107,36 @@ const defaultKind = (t: Type): Type => {
       k ? [n, defaultKindInKind(k)] : [n, kType]) as [Name, Kind][];
     return TForall(nks, defaultKind(t.type));
   }
-  if (t.tag === 'TSkol')
-    return TVar(t.name);
-  if (t.tag === 'TMeta')
-    return terr(`tmeta ${showType(t)} in defaultKind`);
+  if (t.tag === 'TSkol') {
+    t.kind = defaultKindInKind(t.kind);
+    return t;
+  }
+  if (t.tag === 'TMeta') {
+    t.kind = defaultKindInKind(t.kind);
+    return t;
+  }
   return t;
 };
 
 export const inferKind = (env: TEnv, ty: Type): Type => {
   log(() => `inferKind ${showType(ty)}`);
-  const [_, ti] = inferKindR(env, ty);
+  const [_, ti] = inferKindR(env, ty, Nil);
   return defaultKind(ti);
+};
+export const inferKindAnnot = (env: TEnv, annot: Annot): Annot => {
+  log(() => `inferKindAnnot ${showAnnot(annot)}`);
+  const { names, type } = annot;
+  const nks: [Name, Kind][] = Array(names.length);
+  let ntvs: List<[Name, Kind]> = Nil;
+  for (let i = 0, l = names.length; i < l; i++) {
+    const c = names[i];
+    const ki = c[1] || freshKMeta();
+    const kv: [Name, Kind] = [c[0], ki];
+    ntvs = Cons(kv, ntvs);
+    nks[i] = kv;
+  }
+  const [_, b] = inferKindR(env, type, ntvs);
+  return Annot(nks, defaultKind(b));
 };
 
 export const kindOf = (env: TEnv, t: Type): Kind => {

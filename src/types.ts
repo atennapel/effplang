@@ -1,7 +1,7 @@
 import { Name, Id, impossible, freshId, terr, indexOf } from './util';
 import { Kind, kType, showKind } from './kinds';
 import { TEnv } from './env';
-import { inferKind } from './kindinference';
+import { inferKind, inferKindAnnot } from './kindinference';
 import { config, log } from './config';
 
 export type Type
@@ -69,7 +69,7 @@ export interface TSkol {
   readonly tag: 'TSkol';
   readonly name: Name;
   readonly id: Id;
-  readonly kind: Kind;
+  kind: Kind;
 }
 export const TSkol = (name: Name, id: Id, kind: Kind): TSkol =>
   ({ tag: 'TSkol', name, id, kind });
@@ -79,7 +79,7 @@ export const freshTSkol = (name: Name, kind: Kind) =>
 export interface TMeta {
   readonly tag: 'TMeta';
   readonly id: Id;
-  readonly kind: Kind;
+  kind: Kind;
   name: Name | null;
   type: Type | null;
 }
@@ -283,12 +283,12 @@ export const normalizeR = (ty: Type, tvs: Name[] = []): Type => {
     if (ty.type.tag === 'TForall')
       return normalizeR(TForall(ty.names.concat(ty.type.names), ty.type.type), tvs);
     const body = normalizeR(ty.type, tvs);
-    const bound: [Name, Kind][] = [];
+    const bound: [Name, Kind | null][] = [];
     const unbound: Name[] = [];
     for (let i = 0, l = tvs.length; i < l; i++) {
       const c = tvs[i];
       const j = indexOf(ty.names, ([l, _]) => l === c);
-      if (j >= 0) bound.push([ty.names[j][0], ty.names[j][1] || kType]);
+      if (j >= 0) bound.push([ty.names[j][0], ty.names[j][1]]);
       else unbound.push(c);
     }
     tvs.splice(0, tvs.length, ...unbound);
@@ -315,12 +315,5 @@ export const normalizeAnnot = (env: TEnv, a: Annot): Annot => {
     if (j >= 0) bound.push(a.names[j]);
     else return terr(`unbound type variable in annotation ${showAnnot(a)}`);
   }
-  const map: TVMap = {};
-  for (let i = 0, l = bound.length; i < l; i++)
-    map[bound[i][0]] = freshTSkol(bound[i][0], bound[i][1]);
-  const sty = substTVar(map, ty);
-  const kty = inferKind(env, sty);
-  const nanno = Annot(bound, kty);
-  log(() => `result ${showAnnot(nanno)}`);
-  return nanno;
+  return inferKindAnnot(env, Annot(bound, ty));
 };

@@ -65,7 +65,7 @@ const genv: MGEnv = {
   case: MClos(CVAbs('s', CCCase(CVVar('s'))), Nil),
 };
 
-setConfig({ debug: true, showKinds: true });
+setConfig({ debug: false, showKinds: true });
 
 if (process.argv[2]) {
   try {
@@ -89,8 +89,10 @@ if (process.argv[2]) {
   console.log('REPL');
   process.stdin.setEncoding('utf8');
   function input() {
-    readline.question('> ', function(sc: string) {
-      if (sc === ':debug') {
+    readline.question('> ', function(sc_: string) {
+      const sc = sc_.trim();
+      if (sc.length === 0) {
+      } else if (sc === ':debug') {
         const d = !config.debug;
         setConfig({ debug: d });
         console.log(`debug: ${d}`);
