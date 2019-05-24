@@ -211,7 +211,7 @@ export const termToComp = (t: Term): CComp => {
     const x = t.name;
     const a = termToComp(t.val);
     const b = termToComp(t.body);
-    return makeSeq(x, a, b);
+    return CCSeq(x, a, b);
   }
   if (t.tag === 'App') {
     if (isVal(t.left)) {
@@ -223,28 +223,20 @@ export const termToComp = (t: Term): CComp => {
         const a = termToVal(t.left);
         const b = termToComp(t.right);
         const x = freshName();
-        return makeSeq(x, b, CCApp(a, CVVar(x)));
+        return CCSeq(x, b, CCApp(a, CVVar(x)));
       }
     } else if (isVal(t.right)) {
       const a = termToComp(t.left);
       const b = termToVal(t.right);
       const x = freshName();
-      return makeSeq(x, a, CCApp(CVVar(x), b));
+      return CCSeq(x, a, CCApp(CVVar(x), b));
     } else {
       const a = termToComp(t.left);
       const b = termToComp(t.right);
       const x = freshName();
       const y = freshName();
-      return makeSeq(x, a, makeSeq(y, b, CCApp(CVVar(x), CVVar(y))));
+      return CCSeq(x, a, CCSeq(y, b, CCApp(CVVar(x), CVVar(y))));
     }
   }
   return impossible('termToComp');
-};
-
-// (x <- (y <- a; b); c)
-// y <- a; x <- b; c
-const makeSeq = (x: Name, a: CComp, b: CComp): CComp => {
-  if (a.tag === 'CCSeq')
-    return makeSeq(a.name, a.val, makeSeq(x, a.body, b));
-  return CCSeq(x, a, b);
 };

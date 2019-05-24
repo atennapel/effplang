@@ -7,6 +7,7 @@ import { infer } from './inference';
 import { termToComp, showCComp, CVAbs, CCApp, CVVar, CCSeq, CCRet, CCAdd, CCAppend, CCEq, CCShow, CVPair, CCSelect, CVSum, CCCase } from './core';
 import { runToVal, showMVal, MGEnv, MClos, MUnit } from './machine';
 import { Nil } from './list';
+import { optimizeComp } from './optimizer';
 
 const tv = TVar;
 
@@ -70,7 +71,9 @@ if (process.argv[2]) {
     console.log(showType(ty));
     const core = termToComp(term);
     console.log(showCComp(core));
-    const rest = runToVal(genv, core);
+    const coreopt = optimizeComp(core);
+    console.log(showCComp(coreopt));
+    const rest = runToVal(genv, coreopt);
     console.log(showMVal(rest));
   } catch (err) {
     console.error(err);
@@ -93,7 +96,9 @@ if (process.argv[2]) {
         console.log(showType(ty));
         const core = termToComp(term);
         console.log(showCComp(core));
-        const rest = runToVal(genv, core);
+        const coreopt = optimizeComp(core);
+        console.log(showCComp(coreopt));
+        const rest = runToVal(genv, coreopt);
         console.log(showMVal(rest));
       } catch (err) {
         console.error(`${err}`);
