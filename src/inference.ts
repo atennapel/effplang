@@ -1,5 +1,5 @@
 import { LTEnv, LTEnvEntry, TEnv, lookupLTEnv, lookupTEnv } from './env';
-import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat, showType, tEffsEmpty, freshTMeta } from './types';
+import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat, showType, tEffsEmpty, freshTMeta, matchTFun, TForall, flattenTEffsExtend, teffsFrom } from './types';
 import { Name, resetId, terr, impossible, zip } from './util';
 import { Cons, Nil } from './list';
 import { Term, Abs, flattenApp, showTerm, isAnnot } from './terms';
@@ -33,13 +33,29 @@ export const infer = (genv: TEnv, term: Term): TypeEff => {
 const extend = (n: Name, t: Type, e: LTEnv) =>
   Cons(LTEnvEntry(n, t), e);
 
+const openEffsRow = (t: Type): Type => {
+  const f = flattenTEffsExtend(t);
+  if (f.rest === tEffsEmpty)
+    return teffsFrom(f.effs, freshTMeta(kEffs, 'e'));
+  return t;
+};
+const openEffs = (t: Type): Type => {
+  if (t.tag === 'TForall')
+    return TForall(t.names, openEffs(t.type));
+  if (isTFun(t)) {
+    const m = matchTFun(t);
+    return TFun(m.left, openEffsRow(m.effs), openEffs(m.right));
+  }
+  return t;
+};
+
 const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Term): TypeEff => {
   log(() => `synth ${showTerm(term)}`);
   if (term.tag === 'Var') {
     const x = term.name;
     const ty = lookupLTEnv(x, env) || lookupTEnv(x, genv);
     if (!ty) return terr(`undefined var ${x}`);
-    return TypeEff(maybeInst(ex, ty), freshTMeta(kEffs, 'e'));
+    return TypeEff(openEffs(maybeInst(ex, ty)), freshTMeta(kEffs, 'e'));
   }
   if (term.tag === 'Let') {
     const ty = synth(null, Gen, genv, env, term.val);
@@ -48,17 +64,17 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
     return pruneTypeEff(res);
   }
   if (term.tag === 'Abs') {
+    const { left: proparg, effs: propeffs, right: propres, ex: exres } = propFun(prop);
     if (term.annot === annotAny) {
-      const { left: proparg } = propFun(prop);
       term = Abs(term.name, proparg ? Annot([], proparg) : annotAny, term.body);
     }
-    const { right: propres, ex: exres } = propFun(prop);
     const { tmetas: some, type: ty1 } = instantiateAnnot(genv, term.annot);
     const ty2 = synth(propres, exres, genv, extend(term.name, ty1, env), term.body);
     for (let i = 0, l = some.length; i < l; i++) {
       if (!isMono(prune(some[i])))
         return terr(`unannotated parameters used polymorphically in ${showTerm(term)}`);
     }
+    if (propeffs) unify(genv, propeffs, ty2.effs);
     const fty = maybeGen(ex, env, TFun(ty1, ty2.effs, ty2.type));
     return TypeEff(fty, freshTMeta(kEffs, 'e'));
   }
@@ -121,12 +137,12 @@ const propApp = (genv: TEnv, prop: Type | null, ty: Type, fapp: boolean): void =
     subsume(genv, rho, ty);
   }
 };
-const propFun = (prop: Type | null): { left: Type | null, right: Type | null, ex: Expected } => {
-  if (!prop) return { left: null, right: null, ex: Inst };
+const propFun = (prop: Type | null): { left: Type | null, effs: Type | null, right: Type | null, ex: Expected } => {
+  if (!prop) return { left: null, effs: null, right: null, ex: Inst };
   const rho = prune(instantiate(prop));
   if (isTFun(rho))
-    return { left: rho.left.right, right: rho.right, ex: isSigma(rho.right) ? Gen : Inst };
-  return { left: null, right: null, ex: Inst };
+    return { left: rho.left.left.right, effs: rho.left.right, right: rho.right, ex: isSigma(rho.right) ? Gen : Inst };
+  return { left: null, effs: null, right: null, ex: Inst };
 };
 
 const pickArg = (tps: [Type, Term][]): [Type, Term] => {

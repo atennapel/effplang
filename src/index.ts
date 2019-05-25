@@ -7,4 +7,7 @@
  * - strip closures of unused values
  * - definitions
  * - algebraic data types
+ * 
+ * PROBLEMS:
+ *  add (flip Unit)
  */

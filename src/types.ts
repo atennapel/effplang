@@ -120,6 +120,8 @@ export const flattenTEffsExtend = (t: Type): { effs: Type[], rest: Type } => {
   }
   return { effs: r, rest: c };
 };
+export const teffsFrom = (effs: Type[], rest: Type): Type =>
+  effs.reduceRight((r, t) => TEffsExtend(t, r), rest);
 
 export interface TFun {
   readonly tag: 'TApp';
