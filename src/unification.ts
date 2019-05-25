@@ -196,16 +196,17 @@ export const unifyTFun = (ty: Type): { left: Type, effs: Type, right: Type } => 
   }
   return terr(`applying non-function: ${showType(rho)}`);
 };
-export const unifyTFuns = (n: number, ty: Type): { args: Type[], res: Type } => {
+export const unifyTFuns = (n: number, ty: Type): { args: Type[], effs: Type[], res: Type } => {
   const args: Type[] = [];
-  const { left, right } = unifyTFun(ty);
+  const effsr: Type[] = [];
+  const { left, effs, right } = unifyTFun(ty);
   args.push(left);
+  effsr.push(effs);
   let c = prune(right);
   while (args.length < n && isTFun(c)) {
-    args.push(c.left.right);
+    args.push(c.left.left.right);
+    effsr.push(c.left.right);
     c = c.right;
   }
-  return { args, res: c };
+  return { args, effs: effsr, res: c };
 };
-
-

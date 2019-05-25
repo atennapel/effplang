@@ -1,9 +1,9 @@
-import { TVar, TCon, tforall, tfunP, tapp, tString, tFloat, showType, TEffsExtend, tEffsEmpty } from './types';
+import { TVar, TCon, tforall, tfunP, tapp, tString, tFloat, showType, TEffsExtend, tEffsEmpty, TFun } from './types';
 import { TEnv, initialEnv } from './env';
 import { setConfig, config } from './config';
 import { showTerm } from './terms';
 import { parseTerm } from './parser';
-import { infer } from './inference';
+import { infer, showTypeEff } from './inference';
 import { termToComp, showCComp, CVAbs, CCApp, CVVar, CCSeq, CCRet, CCAdd, CCAppend, CCEq, CCShow, CVPair, CCSelect, CVSum, CCCase } from './core';
 import { runToVal, showMVal, MGEnv, MClos, MUnit, amountOfSteps } from './machine';
 import { Nil } from './list';
@@ -47,14 +47,9 @@ const eFlip = TCon('Flip');
 tenv.tcons.Flip = kEff;
 const eState = TCon('State');
 tenv.tcons.State = kfun(kType, kEff);
-const tEff = TCon('Eff');
-tenv.tcons.Eff = kfun(kEffs, kType, kType);
-tenv.vars.return = tforall(['t', ['e', kEffs]], tfunP(tv('t'), tapp(tEff, tv('e'), tv('t'))));
-tenv.vars.pure = tforall(['t'], tfunP(tapp(tEff, tEffsEmpty, tv('t')), tv('t')));
-tenv.vars.bind = tforall(['a', ['e', kEffs], 'b'], tfunP(tfunP(tv('a'), tapp(tEff, tv('e'), tv('b'))), tapp(tEff, tv('e'), tv('a')), tapp(tEff, tv('e'), tv('b'))));
-tenv.vars.flip = tforall([['e', kEffs]], tapp(tEff, TEffsExtend(eFlip, tv('e')), tFloat));
-tenv.vars.get = tforall(['t', ['e', kEffs]], tapp(tEff, TEffsExtend(tapp(eState, tv('t')), tv('e')), tv('t')));
-tenv.vars.put = tforall(['t', ['e', kEffs]], tfunP(tv('t'), tapp(tEff, TEffsExtend(tapp(eState, tv('t')), tv('e')), tUnit)));
+tenv.vars.flip = tforall([['e', kEffs]], TFun(tUnit, TEffsExtend(eFlip, tv('e')), tFloat));
+tenv.vars.get = tforall(['t', ['e', kEffs]], TFun(tUnit, TEffsExtend(tapp(eState, tv('t')), tv('e')), tv('t')));
+tenv.vars.put = tforall(['t', ['e', kEffs]], TFun(tv('t'), TEffsExtend(tapp(eState, tv('t')), tv('e')), tUnit));
 
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
@@ -86,7 +81,7 @@ if (process.argv[2]) {
     const term = parseTerm(sc);
     console.log(showTerm(term));
     const ty = infer(tenv, term);
-    console.log(showType(ty));
+    console.log(showTypeEff(ty));
     const core = termToComp(term);
     console.log(showCComp(core));
     const coreopt = optimizeComp(core);
@@ -119,7 +114,7 @@ if (process.argv[2]) {
         const term = parseTerm(sc);
         console.log(showTerm(term));
         const ty = infer(tenv, term);
-        console.log(showType(ty));
+        console.log(showTypeEff(ty));
         const core = termToComp(term);
         console.log(showCComp(core));
         const coreopt = optimizeComp(core);
