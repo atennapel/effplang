@@ -95,6 +95,32 @@ export const freshTMeta = (kind: Kind, name: Name | null = null) =>
 export const tFloat = TCon('Float');
 export const tString = TCon('String');
 
+export const tEffsEmpty = TCon('<>');
+export const tEffsExtend = TCon('|');
+export interface TEffsExtend {
+  readonly tag: 'TApp';
+  readonly left: {
+    readonly tag: 'TApp';
+    readonly left: TCon;
+    readonly right: Type;
+  }
+  readonly right: Type;
+}
+export const TEffsExtend = (eff: Type, rest: Type): TEffsExtend =>
+  TApp(TApp(tEffsExtend, eff), rest) as TEffsExtend;
+export const isTEffsExtend = (ty: Type): ty is TEffsExtend =>
+  ty.tag === 'TApp' && ty.left.tag === 'TApp' &&
+    ty.left.left === tEffsExtend;
+export const flattenTEffsExtend = (t: Type): { effs: Type[], rest: Type } => {
+  let c = t;
+  const r: Type[] = [];
+  while (isTEffsExtend(c)) {
+    r.push(c.left.right);
+    c = c.right;
+  }
+  return { effs: r, rest: c };
+};
+
 export interface TFun {
   readonly tag: 'TApp';
   readonly left: {
@@ -153,6 +179,12 @@ export const showType = (t: Type): string => {
       k && config.showKinds ?
         `(${x} : ${showKind(k)})` :
         `${x}`).join(' ')}. ${showType(t.type)}`;
+  if (isTEffsExtend(t)) {
+    const f = flattenTEffsExtend(t);
+    return f.rest === tEffsEmpty ?
+      `<${f.effs.map(showType).join(', ')}>` :
+      `<${f.effs.map(showType).join(', ')} | ${showType(f.rest)}>`;
+  }
   if (isTFun(t))
     return flattenTFun(t)
       .map(t => isTFun(t) || t.tag === 'TForall' ?
@@ -160,7 +192,7 @@ export const showType = (t: Type): string => {
       .join(' -> ');
   if (t.tag === 'TApp')
     return flattenTApp(t)
-      .map(t => t.tag === 'TApp' || t.tag === 'TForall' ?
+      .map(t => (t.tag === 'TApp' && !isTEffsExtend(t)) || t.tag === 'TForall' ?
             `(${showType(t)})` : showType(t))
       .join(' ');
   return impossible('showType');

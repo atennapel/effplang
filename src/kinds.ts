@@ -31,6 +31,8 @@ export const KMeta = (id: Id): KMeta =>
 export const freshKMeta = () => KMeta(freshId());
 
 export const kType = KCon('Type');
+export const kEff = KCon('Eff');
+export const kEffs = KCon('Effs');
 
 export const flattenKFun = (ki: Kind): Kind[] => {
   const r: Kind[] = [];

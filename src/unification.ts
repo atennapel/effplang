@@ -1,10 +1,11 @@
-import { Type, prune, freshTMeta, substTVar, TVMap, Annot, TMeta, freshTSkol, showType, tbinders, TVar, TForall, tmetas, occursTMeta, TSkol, occursAnyTSkol, isTFun, TFun, normalizeAnnot } from './types';
+import { Type, prune, freshTMeta, substTVar, TVMap, Annot, TMeta, freshTSkol, showType, tbinders, TVar, TForall, tmetas, occursTMeta, TSkol, occursAnyTSkol, isTFun, TFun, normalizeAnnot, isTEffsExtend, TEffsExtend, TCon, flattenTApp } from './types';
 import { log } from './config';
 import { LTEnv, TEnv } from './env';
 import { each } from './list';
 import { terr, Name } from './util';
 import { kindOf } from './kindinference';
-import { eqKind, showKind, kType, Kind } from './kinds';
+import { eqKind, showKind, kType, Kind, kEffs } from './kinds';
+import { flattenApp } from './terms';
 
 export const instantiate = (ty: Type): Type => {
   log(() => `instantiate ${showType(ty)}`);
@@ -89,9 +90,40 @@ export const generalize = (lenv: LTEnv, ty: Type): Type => {
   return quantify(tms, pty);
 };
 
+const rewriteEffs = (eff: TCon, row: Type): TEffsExtend => {
+  if (isTEffsExtend(row)) {
+    const eff2 = flattenTApp(row.left.right)[0];
+    if (!eff2 || eff2.tag !== 'TCon')
+      return terr(`invalid effect in effs (2): ${showType(row.left.right)}`);
+    if (eff === eff2 || eff.name === eff2.name) return row;
+    else {
+      const tail = rewriteEffs(eff, row.right);
+      return TEffsExtend(tail.left.right, TEffsExtend(row.left.right, tail.right));
+    }
+  }
+  if (row.tag === 'TMeta') {
+    if (row.type) return rewriteEffs(eff, row.type);
+    const tv = freshTMeta(kEffs, 'e');
+    if (occursTMeta(row, eff))
+      return terr(`${showType(row)} occurs in ${showType(eff)} in rewriteEffs`);
+    const nrow = TEffsExtend(eff, tv)
+    row.type = nrow;
+    return nrow;
+  }
+  return terr(`cannot rewriteEffs: ${showType(eff)} in ${showType(row)}`);
+};
+
 export const unify = (env: TEnv, a: Type, b: Type): void => {
   log(() => `unify ${showType(a)} ~ ${showType(b)}`);
   if (a === b) return;
+  if (isTEffsExtend(a) && isTEffsExtend(b)) {
+    const eff = flattenTApp(a.left.right)[0];
+    if (!eff || eff.tag !== 'TCon')
+      return terr(`invalid effect in effs: ${showType(a.left.right)}`);
+    const br = rewriteEffs(eff, b);
+    unify(env, a.right, br.right);
+    return;
+  }
   if (a.tag === 'TApp' && b.tag === 'TApp') {
     unify(env, a.left, b.left);
     unify(env, a.right, b.right);

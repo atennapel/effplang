@@ -1,7 +1,7 @@
 import { List } from './list';
 import { Name } from './util';
 import { Type } from './types';
-import { Kind, kfun, kType } from './kinds';
+import { Kind, kfun, kType, kEffs, kEff } from './kinds';
 
 export interface LTEnvEntry { name: Name, type: Type };
 export const LTEnvEntry = (name: Name, type: Type) => ({ name, type });
@@ -30,6 +30,8 @@ export const initialEnv = (): TEnv => ({
     '->': kfun(kType, kType, kType),
     Float: kType,
     String: kType,
+    '<>': kEffs,
+    '|': kfun(kEff, kEffs, kEffs),
   },
   vars: {},
 });
