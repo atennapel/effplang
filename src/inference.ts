@@ -27,7 +27,10 @@ const maybeInstOrGen = (ex: Expected, env: LTEnv, ty: Type) =>
 export const infer = (genv: TEnv, term: Term): TypeEff => {
   resetId();
   const ty = synth(null, Gen, genv, Nil, term);
-  return pruneTypeEff(ty);
+  return TypeEff(
+    generalize(Nil, prune(ty.type)),
+    prune(ty.effs),
+  );
 };
 
 const extend = (n: Name, t: Type, e: LTEnv) =>

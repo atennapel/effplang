@@ -90,6 +90,7 @@ export const generalize = (lenv: LTEnv, ty: Type): Type => {
 };
 
 const rewriteEffs = (env: TEnv, eff: TCon, all: Type, row: Type): TEffsExtend => {
+  log(() => `rewriteEffs ${showType(all)} ~ ${showType(row)}`);
   if (isTEffsExtend(row)) {
     const eff2 = flattenTApp(row.left.right)[0];
     if (!eff2 || eff2.tag !== 'TCon')
@@ -105,9 +106,9 @@ const rewriteEffs = (env: TEnv, eff: TCon, all: Type, row: Type): TEffsExtend =>
   if (row.tag === 'TMeta') {
     if (row.type) return rewriteEffs(env, eff, all, row.type);
     const tv = freshTMeta(kEffs, 'e');
-    if (occursTMeta(row, eff))
+    if (occursTMeta(row, all))
       return terr(`${showType(row)} occurs in ${showType(eff)} in rewriteEffs`);
-    const nrow = TEffsExtend(eff, tv)
+    const nrow = TEffsExtend(all, tv)
     row.type = nrow;
     return nrow;
   }

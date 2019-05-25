@@ -47,9 +47,9 @@ const eFlip = TCon('Flip');
 tenv.tcons.Flip = kEff;
 const eState = TCon('State');
 tenv.tcons.State = kfun(kType, kEff);
-tenv.vars.flip = tforall([['e', kEffs]], TFun(tUnit, TEffsExtend(eFlip, tv('e')), tFloat));
-tenv.vars.get = tforall(['t', ['e', kEffs]], TFun(tUnit, TEffsExtend(tapp(eState, tv('t')), tv('e')), tv('t')));
-tenv.vars.put = tforall(['t', ['e', kEffs]], TFun(tv('t'), TEffsExtend(tapp(eState, tv('t')), tv('e')), tUnit));
+tenv.vars.flip = TFun(tUnit, TEffsExtend(eFlip, tEffsEmpty), tFloat);
+tenv.vars.get = tforall(['t'], TFun(tUnit, TEffsExtend(tapp(eState, tv('t')), tEffsEmpty), tv('t')));
+tenv.vars.put = tforall(['t'], TFun(tv('t'), TEffsExtend(tapp(eState, tv('t')), tEffsEmpty), tUnit));
 
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
