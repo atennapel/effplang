@@ -90,19 +90,21 @@ export const generalize = (lenv: LTEnv, ty: Type): Type => {
   return quantify(tms, pty);
 };
 
-const rewriteEffs = (eff: TCon, row: Type): TEffsExtend => {
+const rewriteEffs = (env: TEnv, eff: TCon, all: Type, row: Type): TEffsExtend => {
   if (isTEffsExtend(row)) {
     const eff2 = flattenTApp(row.left.right)[0];
     if (!eff2 || eff2.tag !== 'TCon')
       return terr(`invalid effect in effs (2): ${showType(row.left.right)}`);
-    if (eff === eff2 || eff.name === eff2.name) return row;
-    else {
-      const tail = rewriteEffs(eff, row.right);
+    if (eff === eff2 || eff.name === eff2.name) {
+      unify(env, all, row.left.right);
+      return row;
+    } else {
+      const tail = rewriteEffs(env, eff, all, row.right);
       return TEffsExtend(tail.left.right, TEffsExtend(row.left.right, tail.right));
     }
   }
   if (row.tag === 'TMeta') {
-    if (row.type) return rewriteEffs(eff, row.type);
+    if (row.type) return rewriteEffs(env, eff, all, row.type);
     const tv = freshTMeta(kEffs, 'e');
     if (occursTMeta(row, eff))
       return terr(`${showType(row)} occurs in ${showType(eff)} in rewriteEffs`);
@@ -120,7 +122,7 @@ export const unify = (env: TEnv, a: Type, b: Type): void => {
     const eff = flattenTApp(a.left.right)[0];
     if (!eff || eff.tag !== 'TCon')
       return terr(`invalid effect in effs: ${showType(a.left.right)}`);
-    const br = rewriteEffs(eff, b);
+    const br = rewriteEffs(env, eff, a.left.right, b);
     unify(env, a.right, br.right);
     return;
   }
