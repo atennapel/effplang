@@ -17,11 +17,7 @@ const tUnit = TCon('Unit');
 const tPair = TCon('Pair');
 const tSum = TCon('Sum');
 
-const eFlip = TCon('Flip');
-
 const tenv = initialEnv();
-
-tenv.tcons.Flip = kEff;
 
 tenv.tcons.Void = kType;
 tenv.vars.void = tforall(['t'], tfun(tVoid, tv('t')));
@@ -47,12 +43,18 @@ tenv.vars.eq = tforall(['t'], tfun(tv('t'), tv('t'), tapp(tSum, tUnit, tUnit)));
 tenv.vars.append = tfun(tString, tString, tString);
 tenv.vars.show = tforall(['t'], tfun(tv('t'), tString));
 
+const eFlip = TCon('Flip');
+tenv.tcons.Flip = kEff;
+const eState = TCon('State');
+tenv.tcons.State = kfun(kType, kEff);
 const tEff = TCon('Eff');
 tenv.tcons.Eff = kfun(kEffs, kType, kType);
 tenv.vars.return = tforall(['t', ['e', kEffs]], tfun(tv('t'), tapp(tEff, tv('e'), tv('t'))));
 tenv.vars.pure = tforall(['t'], tfun(tapp(tEff, tEffsEmpty, tv('t')), tv('t')));
-tenv.vars.flip = tforall([['e', kEffs]], tapp(tEff, TEffsExtend(eFlip, tv('e')), tFloat));
 tenv.vars.bind = tforall(['a', ['e', kEffs], 'b'], tfun(tfun(tv('a'), tapp(tEff, tv('e'), tv('b'))), tapp(tEff, tv('e'), tv('a')), tapp(tEff, tv('e'), tv('b'))));
+tenv.vars.flip = tforall([['e', kEffs]], tapp(tEff, TEffsExtend(eFlip, tv('e')), tFloat));
+tenv.vars.get = tforall(['t', ['e', kEffs]], tapp(tEff, TEffsExtend(tapp(eState, tv('t')), tv('e')), tv('t')));
+tenv.vars.put = tforall(['t', ['e', kEffs]], tfun(tv('t'), tapp(tEff, TEffsExtend(tapp(eState, tv('t')), tv('e')), tUnit)));
 
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
