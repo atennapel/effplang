@@ -1,9 +1,9 @@
 import { LTEnv, LTEnvEntry, TEnv, lookupLTEnv, lookupTEnv } from './env';
-import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat, showType } from './types';
+import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat, showType, tEffsEmpty } from './types';
 import { Name, resetId, terr, impossible, zip } from './util';
 import { Cons, Nil } from './list';
 import { Term, Abs, flattenApp, showTerm, isAnnot } from './terms';
-import { generalize, instantiate, subsume, instantiateAnnot, matchTFuns, unify } from './unification';
+import { generalize, instantiate, subsume, instantiateAnnot, unifyTFuns, unify } from './unification';
 import { log } from './config';
 
 type Expected = 'Inst' | 'Gen';
@@ -49,7 +49,7 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
       if (!isMono(prune(some[i])))
         return terr(`unannotated parameters used polymorphically in ${showTerm(term)}`);
     }
-    return maybeGen(ex, env, TFun(ty1, ty2)); 
+    return maybeGen(ex, env, TFun(ty1, tEffsEmpty, ty2)); 
   }
   if (term.tag === 'Ann') {
     const { type } = instantiateAnnot(genv, term.annot);
@@ -75,7 +75,7 @@ const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Te
 
 const inferApp = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, fty: Type, args: Term[]): Type => {
   log(() => `inferApp ${showType(fty)} with ${args.map(showTerm).join(' ')}`);
-  const { args: tpars, res } = matchTFuns(args.length, fty);
+  const { args: tpars, res } = unifyTFuns(args.length, fty);
   // log(() => `${tpars.map(showType).join(' ')} ; ${showType(res)}`);
   propApp(genv, prop, res, tpars.length === args.length);
   const pargs = zip(tpars, args);

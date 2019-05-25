@@ -1,11 +1,10 @@
-import { Type, prune, freshTMeta, substTVar, TVMap, Annot, TMeta, freshTSkol, showType, tbinders, TVar, TForall, tmetas, occursTMeta, TSkol, occursAnyTSkol, isTFun, TFun, normalizeAnnot, isTEffsExtend, TEffsExtend, TCon, flattenTApp } from './types';
+import { Type, prune, freshTMeta, substTVar, TVMap, Annot, TMeta, freshTSkol, showType, tbinders, TVar, TForall, tmetas, occursTMeta, TSkol, occursAnyTSkol, isTFun, TFun, normalizeAnnot, isTEffsExtend, TEffsExtend, TCon, flattenTApp, matchTFun } from './types';
 import { log } from './config';
 import { LTEnv, TEnv } from './env';
 import { each } from './list';
 import { terr, Name } from './util';
 import { kindOf } from './kindinference';
 import { eqKind, showKind, kType, Kind, kEffs } from './kinds';
-import { flattenApp } from './terms';
 
 export const instantiate = (ty: Type): Type => {
   log(() => `instantiate ${showType(ty)}`);
@@ -185,20 +184,21 @@ export const subsume = (env: TEnv, a: Type, b: Type): void => {
     return terr(`right type not polymorphic enough: ${showType(a)} <: ${showType(b)}`);
 };
 
-export const matchTFun = (ty: Type): { left: Type, right: Type } => {
+export const unifyTFun = (ty: Type): { left: Type, effs: Type, right: Type } => {
   const rho = prune(instantiate(prune(ty)));
-  if (isTFun(rho)) return { left: rho.left.right, right: rho.right };
+  if (isTFun(rho)) return matchTFun(rho);
   if (rho.tag === 'TMeta') {
     const a = freshTMeta(kType, rho.name);
+    const e = freshTMeta(kEffs, 'e');
     const b = freshTMeta(kType, rho.name);
-    rho.type = TFun(a, b);
-    return { left: a, right: b };
+    rho.type = TFun(a, e, b);
+    return { left: a, effs: e, right: b };
   }
   return terr(`applying non-function: ${showType(rho)}`);
 };
-export const matchTFuns = (n: number, ty: Type): { args: Type[], res: Type } => {
+export const unifyTFuns = (n: number, ty: Type): { args: Type[], res: Type } => {
   const args: Type[] = [];
-  const { left, right } = matchTFun(ty);
+  const { left, right } = unifyTFun(ty);
   args.push(left);
   let c = prune(right);
   while (args.length < n && isTFun(c)) {

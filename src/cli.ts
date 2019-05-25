@@ -1,4 +1,4 @@
-import { TVar, TCon, tforall, tfun, tapp, tString, tFloat, showType, TEffsExtend, tEffsEmpty } from './types';
+import { TVar, TCon, tforall, tfunP, tapp, tString, tFloat, showType, TEffsExtend, tEffsEmpty } from './types';
 import { TEnv, initialEnv } from './env';
 import { setConfig, config } from './config';
 import { showTerm } from './terms';
@@ -20,28 +20,28 @@ const tSum = TCon('Sum');
 const tenv = initialEnv();
 
 tenv.tcons.Void = kType;
-tenv.vars.void = tforall(['t'], tfun(tVoid, tv('t')));
+tenv.vars.void = tforall(['t'], tfunP(tVoid, tv('t')));
 
 tenv.tcons.Unit = kType;
 tenv.vars.Unit = tUnit;
 
 tenv.tcons.Pair = kfun(kType, kType, kType);
-tenv.vars.Pair = tforall(['a', 'b'], tfun(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))));
-tenv.vars.fst = tforall(['a', 'b'], tfun(tapp(tPair, tv('a'), tv('b')), tv('a')));
-tenv.vars.snd = tforall(['a', 'b'], tfun(tapp(tPair, tv('a'), tv('b')), tv('b')));
+tenv.vars.Pair = tforall(['a', 'b'], tfunP(tv('a'), tv('b'), tapp(tPair, tv('a'), tv('b'))));
+tenv.vars.fst = tforall(['a', 'b'], tfunP(tapp(tPair, tv('a'), tv('b')), tv('a')));
+tenv.vars.snd = tforall(['a', 'b'], tfunP(tapp(tPair, tv('a'), tv('b')), tv('b')));
 
 tenv.tcons.Sum = kfun(kType, kType, kType);
-tenv.vars.L = tforall(['a', 'b'], tfun(tv('a'), tapp(tSum, tv('a'), tv('b'))));
-tenv.vars.R = tforall(['a', 'b'], tfun(tv('b'), tapp(tSum, tv('a'), tv('b'))));
-tenv.vars.case = tforall(['a', 'b', 'r'], tfun(tapp(tSum, tv('a'), tv('b')), tfun(tv('a'), tv('r')), tfun(tv('b'), tv('r')), tv('r')));
+tenv.vars.L = tforall(['a', 'b'], tfunP(tv('a'), tapp(tSum, tv('a'), tv('b'))));
+tenv.vars.R = tforall(['a', 'b'], tfunP(tv('b'), tapp(tSum, tv('a'), tv('b'))));
+tenv.vars.case = tforall(['a', 'b', 'r'], tfunP(tapp(tSum, tv('a'), tv('b')), tfunP(tv('a'), tv('r')), tfunP(tv('b'), tv('r')), tv('r')));
 
-tenv.vars.fix = tforall(['t'], tfun(tfun(tv('t'), tv('t')), tv('t')));
+tenv.vars.fix = tforall(['t'], tfunP(tfunP(tv('t'), tv('t')), tv('t')));
 
-tenv.vars.add = tfun(tFloat, tFloat, tFloat);
-tenv.vars.eq = tforall(['t'], tfun(tv('t'), tv('t'), tapp(tSum, tUnit, tUnit)));
+tenv.vars.add = tfunP(tFloat, tFloat, tFloat);
+tenv.vars.eq = tforall(['t'], tfunP(tv('t'), tv('t'), tapp(tSum, tUnit, tUnit)));
 
-tenv.vars.append = tfun(tString, tString, tString);
-tenv.vars.show = tforall(['t'], tfun(tv('t'), tString));
+tenv.vars.append = tfunP(tString, tString, tString);
+tenv.vars.show = tforall(['t'], tfunP(tv('t'), tString));
 
 const eFlip = TCon('Flip');
 tenv.tcons.Flip = kEff;
@@ -49,12 +49,12 @@ const eState = TCon('State');
 tenv.tcons.State = kfun(kType, kEff);
 const tEff = TCon('Eff');
 tenv.tcons.Eff = kfun(kEffs, kType, kType);
-tenv.vars.return = tforall(['t', ['e', kEffs]], tfun(tv('t'), tapp(tEff, tv('e'), tv('t'))));
-tenv.vars.pure = tforall(['t'], tfun(tapp(tEff, tEffsEmpty, tv('t')), tv('t')));
-tenv.vars.bind = tforall(['a', ['e', kEffs], 'b'], tfun(tfun(tv('a'), tapp(tEff, tv('e'), tv('b'))), tapp(tEff, tv('e'), tv('a')), tapp(tEff, tv('e'), tv('b'))));
+tenv.vars.return = tforall(['t', ['e', kEffs]], tfunP(tv('t'), tapp(tEff, tv('e'), tv('t'))));
+tenv.vars.pure = tforall(['t'], tfunP(tapp(tEff, tEffsEmpty, tv('t')), tv('t')));
+tenv.vars.bind = tforall(['a', ['e', kEffs], 'b'], tfunP(tfunP(tv('a'), tapp(tEff, tv('e'), tv('b'))), tapp(tEff, tv('e'), tv('a')), tapp(tEff, tv('e'), tv('b'))));
 tenv.vars.flip = tforall([['e', kEffs]], tapp(tEff, TEffsExtend(eFlip, tv('e')), tFloat));
 tenv.vars.get = tforall(['t', ['e', kEffs]], tapp(tEff, TEffsExtend(tapp(eState, tv('t')), tv('e')), tv('t')));
-tenv.vars.put = tforall(['t', ['e', kEffs]], tfun(tv('t'), tapp(tEff, TEffsExtend(tapp(eState, tv('t')), tv('e')), tUnit)));
+tenv.vars.put = tforall(['t', ['e', kEffs]], tfunP(tv('t'), tapp(tEff, TEffsExtend(tapp(eState, tv('t')), tv('e')), tUnit)));
 
 const fixPart = CVAbs('x', CCApp(CVVar('f'), CVAbs('v', CCSeq('t', CCApp(CVVar('x'), CVVar('x')), CCApp(CVVar('t'), CVVar('v'))))));
 
@@ -127,6 +127,7 @@ if (process.argv[2]) {
         const rest = runToVal(genv, coreopt);
         console.log(showMVal(rest));
       } catch (err) {
+        // console.log(err);
         console.error(`${err}`);
       }   
       setImmediate(input, 0);

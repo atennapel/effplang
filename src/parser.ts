@@ -1,5 +1,5 @@
 import { Name } from './util';
-import { Type, tfunFrom, TApp, tFun, TCon, TVar, tforall, Annot } from './types';
+import { Type, tfunPFrom, TApp, tFun, TCon, TVar, tforall, Annot } from './types';
 import { Term, Ann, Let, App, Lit, Var, absannot } from './terms';
 import { KCon, Kind, kfunFrom } from './kinds';
 
@@ -276,7 +276,7 @@ const parseTypeTop = (ts: string[]): Type => {
     funLast = false;
   }
   if (tys.length === 0) return err(`empty type`);
-  const tf = tfunFrom(tys);
+  const tf = tfunPFrom(tys);
   if (funLast) {
     if (tys.length === 0) return tFun;
     return TApp(tFun, tf);

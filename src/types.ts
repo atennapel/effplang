@@ -125,28 +125,34 @@ export interface TFun {
   readonly tag: 'TApp';
   readonly left: {
     readonly tag: 'TApp';
-    readonly left: TCon;
+    readonly left: {
+      readonly tag: 'TApp'
+      readonly left: TCon;
+      readonly right: Type;
+    }
     readonly right: Type;
   }
   readonly right: Type;
 }
 export const tFun = TCon('->');
-export const TFun = (left: Type, right: Type): TFun =>
-  TApp(TApp(tFun, left), right) as TFun;
+export const TFun = (left: Type, eff: Type, right: Type): TFun =>
+  tapp(tFun, left, eff, right) as TFun;
 export const isTFun = (ty: Type): ty is TFun =>
   ty.tag === 'TApp' && ty.left.tag === 'TApp' &&
-    (ty.left.left === tFun ||
-      (ty.left.left.tag === 'TCon' &&
-        ty.left.left.name === tFun.name));
-export const tfunFrom = (ts: Type[]): Type =>
-  ts.reduceRight((x, y) => TFun(y, x));
-export const tfun = (...ts: Type[]): Type =>
-  tfunFrom(ts);
-export const flattenTFun = (t: Type): Type[] => {
+    ty.left.left.tag === 'TApp' && ty.left.left.left === tFun;
+export const matchTFun = (ty: TFun): { left: Type, effs: Type, right: Type } =>
+  ({ left: ty.left.left.right, effs: ty.left.right, right: ty.right });
+export const TFunP = (left: Type, right: Type): TFun =>
+  TFun(left, tEffsEmpty, right);
+export const tfunPFrom = (ts: Type[]): Type =>
+  ts.reduceRight((x, y) => TFunP(y, x));
+export const tfunP = (...ts: Type[]): Type =>
+  tfunPFrom(ts);
+export const flattenTFunP = (t: Type): Type[] => {
   let c = t;
   const r: Type[] = [];
   while (isTFun(c)) {
-    r.push(c.left.right);
+    r.push(c.left.left.right);
     c = c.right;
   }
   r.push(c);
@@ -185,11 +191,10 @@ export const showType = (t: Type): string => {
       `<${f.effs.map(showType).join(', ')}>` :
       `<${f.effs.map(showType).join(', ')} | ${showType(f.rest)}>`;
   }
-  if (isTFun(t))
-    return flattenTFun(t)
-      .map(t => isTFun(t) || t.tag === 'TForall' ?
-        `(${showType(t)})` : showType(t))
-      .join(' -> ');
+  if (isTFun(t)) {
+    const m = matchTFun(t);
+    return `${isTFun(m.left) ? `(${showType(m.left)})` : showType(m.left)} -> ${m.effs === tEffsEmpty ? '' : `${showType(m.effs)} `}${showType(t.right)}`;
+  }
   if (t.tag === 'TApp')
     return flattenTApp(t)
       .map(t => (t.tag === 'TApp' && !isTEffsExtend(t)) || t.tag === 'TForall' ?
