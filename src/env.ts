@@ -27,7 +27,7 @@ export const lookupTEnv = (name: Name, genv: TEnv): Type | null =>
 
 export const initialEnv = (): TEnv => ({
   tcons: {
-    '->': kfun(kType, kType, kType),
+    '->': kfun(kType, kEffs, kType, kType),
     Float: kType,
     String: kType,
     '<>': kEffs,

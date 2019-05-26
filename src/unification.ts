@@ -1,7 +1,7 @@
-import { Type, prune, freshTMeta, substTVar, TVMap, Annot, TMeta, freshTSkol, showType, tbinders, TVar, TForall, tmetas, occursTMeta, TSkol, occursAnyTSkol, isTFun, TFun, normalizeAnnot, isTEffsExtend, TEffsExtend, TCon, flattenTApp, matchTFun } from './types';
+import { Type, prune, freshTMeta, substTVar, TVMap, Annot, TMeta, freshTSkol, showType, tbinders, TVar, TForall, tmetas, occursTMeta, TSkol, occursAnyTSkol, isTFun, TFun, normalizeAnnot, isTEffsExtend, TEffsExtend, TCon, flattenTApp, matchTFun, flattenTEffsExtend, teffsFrom, tEffsEmpty, normalize } from './types';
 import { log } from './config';
 import { LTEnv, TEnv } from './env';
-import { each } from './list';
+import { each, List, Nil } from './list';
 import { terr, Name } from './util';
 import { kindOf } from './kindinference';
 import { eqKind, showKind, kType, Kind, kEffs } from './kinds';
@@ -210,4 +210,30 @@ export const unifyTFuns = (n: number, ty: Type): { args: Type[], effs: Type[], r
     c = c.right;
   }
   return { args, effs: effsr, res: c };
+};
+
+const openEffsRow = (t: Type): Type => {
+  const f = flattenTEffsExtend(t);
+  if (f.rest === tEffsEmpty)
+    return teffsFrom(f.effs, freshTMeta(kEffs, 'e'));
+  return t;
+};
+export const openEffs = (t: Type): Type => {
+  if (t.tag === 'TForall')
+    return TForall(t.names, openEffs(t.type));
+  if (isTFun(t)) {
+    const m = matchTFun(t);
+    return TFun(m.left, openEffsRow(m.effs), openEffs(m.right));
+  }
+  return t;
+};
+
+export const closeEffs = (t: Type, counts: List<[Name, number]> = Nil): Type => {
+  return t;
+};
+
+export const generalizeAndClose = (genv: TEnv, lenv: LTEnv, ty: Type): Type => {
+  const g = generalize(lenv, ty);
+  const c = closeEffs(g);
+  return normalize(genv, c);
 };

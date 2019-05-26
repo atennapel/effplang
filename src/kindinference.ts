@@ -3,11 +3,7 @@ import { TEnv, lookupTCon } from './env';
 import {
   TApp,
   TForall,
-  substTVar,
-  TVar,
   Type,
-  TVMap,
-  freshTSkol,
   showType,
   showAnnot,
   Annot,
@@ -32,6 +28,7 @@ const bindKMeta = (x: KMeta, k: Kind): void => {
   x.kind = k;
 };
 const unifyKind = (a: Kind, b: Kind): void => {
+  log(() => `unifyKind ${showKind(a)} ~ ${showKind(b)}`);
   if (a === b) return;
   if (a.tag === 'KMeta') return bindKMeta(a, b);
   if (b.tag === 'KMeta') return bindKMeta(b, a);
@@ -47,6 +44,7 @@ const unifyKind = (a: Kind, b: Kind): void => {
 
 type TVarEnv = List<[Name, Kind]>;
 const inferKindR = (env: TEnv, t: Type, tvars: TVarEnv): [Kind, Type] => {
+  log(() => `inferKindR ${showType(t)}`);
   if (t.tag === 'TMeta') return [t.kind, t];
   if (t.tag === 'TSkol') return [t.kind, t];
   if (t.tag === 'TVar') {

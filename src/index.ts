@@ -1,6 +1,6 @@
 /**
  * TODO:
- * - arrows with effects
+ * - implement effect closing
  * - parser: effect rows
  * - effect polymorphism
  * - row polymorphism
