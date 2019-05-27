@@ -1,6 +1,5 @@
 /**
  * TODO:
- * - implement effect closing
  * - parser: effect rows
  * - effect polymorphism
  * - row polymorphism

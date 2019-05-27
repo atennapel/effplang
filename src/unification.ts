@@ -228,8 +228,53 @@ export const openEffs = (t: Type): Type => {
   return t;
 };
 
-export const closeEffs = (t: Type, counts: List<[Name, number]> = Nil): Type => {
+const markCounts = (t: Type, map: { [key: string]: number } = {}): void => {
+  if (t.tag === 'TVar') {
+    map[t.name]++;
+    (t as any)._counts = map;
+    return;
+  }
+  if (t.tag === 'TForall') {
+    const m = Object.create(map);
+    for (let i = 0, l = t.names.length; i < l; i++)
+      m[t.names[i][0]] = 0;
+    markCounts(t.type, m);
+    return;
+  }
+  if (t.tag === 'TApp') {
+    markCounts(t.left, map);
+    markCounts(t.right, map);
+    return;
+  }
+};
+const closeEffsRow = (t: Type): Type => {
+  if (t === tEffsEmpty) return t;
+  const f = flattenTEffsExtend(t);
+  const r = f.rest;
+  let rr = r;
+  if (r.tag === 'TVar') {
+    const c = (r as any)._counts[r.name];
+    delete (r as any)._counts;
+    if (c < 2) rr = tEffsEmpty;
+  }
+  return teffsFrom(f.effs, rr);
+};
+const closeEffsR = (t: Type): Type => {
+  if (t.tag === 'TVar') {
+    if ((t as any)._counts) delete (t as any)._counts;
+    return t;
+  }
+  if (t.tag === 'TForall')
+    return TForall(t.names, closeEffsR(t.type));
+  if (isTFun(t)) {
+    const m = matchTFun(t);
+    return TFun(m.left, closeEffsRow(m.effs), closeEffsR(m.right));
+  }
   return t;
+};
+export const closeEffs = (t: Type): Type => {
+  markCounts(t);
+  return closeEffsR(t);
 };
 
 export const generalizeAndClose = (genv: TEnv, lenv: LTEnv, ty: Type): Type => {
