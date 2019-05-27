@@ -331,7 +331,7 @@ export const normalizeR = (ty: Type, tvs: Name[] = []): Type => {
       else unbound.push(c);
     }
     tvs.splice(0, tvs.length, ...unbound);
-    return TForall(bound, body);
+    return tforall(bound, body);
   }
   return ty;
 };
