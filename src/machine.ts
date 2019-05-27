@@ -1,6 +1,6 @@
-import { List, Cons, Nil, toString, toArray, mapList, any, lookupListKey, removeFirstKey } from './list';
+import { List, Cons, Nil, toString, toArray, mapList, any, lookupListKey, removeFirstKey, filter } from './list';
 import { Name, impossible } from './util';
-import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat, showCComp, CVEmbed, CVVar, CCApp, CVSum, CVUnit, CVString } from './core';
+import { CVAbs, CComp, CVal, showCVal, CCRet, CVFloat, showCComp, CVEmbed, CVVar, CCApp, CVSum, CVUnit, CVString, freeCComp, Free } from './core';
 import { log } from './config';
 
 export type MGEnv = { [key: string]: MVal };
@@ -146,10 +146,26 @@ const MState = (comp: CComp, env: MLEnv, cont: MCont): MState =>
 const showMState = (st: MState): string =>
   `(${showCComp(st.comp)}, ${showMLEnv(st.env)}, ${showMCont(st.cont)})`;
 
+const shrinkEnv = (x: Name, body: CComp, env: MLEnv): MLEnv => {
+  const f = freeCComp(body);
+  const seen: Free = {};
+  return filter(env, kv => {
+    if (kv.name === x) return false;
+    if (seen[kv.name]) return false;
+    if (!f[kv.name]) return false;
+    seen[kv.name] = true;
+    return true;
+  });
+};
+const makeMSeq = (x: Name, body: CComp, env: MLEnv, rest: MCont): MSeq =>
+  MSeq(x, body, shrinkEnv(x, body, env), rest);
+const makeMClos = (val: CVAbs, env: MLEnv): MClos =>
+  MClos(val, shrinkEnv(val.name, val.body, env));
+
 const reifyVal = (genv: MGEnv, env: MLEnv, val: CVal): MVal | null => {
   if (val.tag === 'CVVar')
     return lookup(val.name, env) || genv[val.name] || null;
-  if (val.tag === 'CVAbs') return MClos(val, env);
+  if (val.tag === 'CVAbs') return makeMClos(val, env);
   if (val.tag === 'CVUnit') return MUnit;
   if (val.tag === 'CVFloat') return MFloat(val.val);
   if (val.tag === 'CVString') return MString(val.val);
@@ -183,7 +199,7 @@ const step = (genv: MGEnv, st: MState): MState | null => {
     return MState(f.abs.body, extend(f.abs.name, a, f.env), cont);
   }
   if (comp.tag === 'CCSeq')
-    return MState(comp.val, env, MSeq(comp.name, comp.body, env, cont));
+    return MState(comp.val, env, makeMSeq(comp.name, comp.body, env, cont));
   if (comp.tag === 'CCAdd') {
     const a = reifyVal(genv, env, comp.left);
     if (!a || a.tag !== 'MFloat') return null;

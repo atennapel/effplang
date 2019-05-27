@@ -187,6 +187,35 @@ export const showCComp = (c: CComp): string => {
   return impossible('showCComp');
 };
 
+export type Free = { [key: string]: boolean };
+export const freeCVal = (c: CVal, f: Free = {}): Free => {
+  if (c.tag === 'CVVar') { f[c.name] = true; return f }
+  if (c.tag === 'CVAbs') {
+    freeCComp(c.body, f);
+    f[c.name] = false;
+    return f;
+  }
+  if (c.tag === 'CVUnit') return f;
+  if (c.tag === 'CVFloat') return f;
+  if (c.tag === 'CVString') return f;
+  if (c.tag === 'CVPair') return freeCVal(c.snd, freeCVal(c.fst, f));
+  if (c.tag === 'CVSum') return freeCVal(c.val, f);
+  if (c.tag === 'CVEmbed') return f;
+  return impossible('freeCVal');
+};
+export const freeCComp = (c: CComp, f: Free = {}): Free => {
+  if (c.tag === 'CCRet') return freeCVal(c.val, f);
+  if (c.tag === 'CCApp') return freeCVal(c.right, freeCVal(c.left, f));
+  if (c.tag === 'CCSeq') return freeCComp(c.body, freeCComp(c.val, f));
+  if (c.tag === 'CCAdd') return freeCVal(c.right, freeCVal(c.left, f));
+  if (c.tag === 'CCAppend') return freeCVal(c.right, freeCVal(c.left, f));
+  if (c.tag === 'CCEq') return freeCVal(c.right, freeCVal(c.left, f));
+  if (c.tag === 'CCSelect') return freeCVal(c.val, f);
+  if (c.tag === 'CCCase') return freeCVal(c.val, f);
+  if (c.tag === 'CCShow') return freeCVal(c.val, f);
+  return impossible('freeCComp');
+};
+
 const freshName = () => `_${freshId()}`;
 
 export const isComp = (t: Term): boolean =>
