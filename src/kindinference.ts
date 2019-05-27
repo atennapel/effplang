@@ -137,17 +137,31 @@ export const inferKindAnnot = (env: TEnv, annot: Annot): Annot => {
   return Annot(nks, defaultKind(b));
 };
 
-export const kindOf = (env: TEnv, t: Type): Kind => {
+export const kindOf = (env: TEnv, t: Type, tvars: List<[Name, Kind]> = Nil): Kind => {
+  log(() => `kindOf ${showType(t)}`);
   if (t.tag === 'TMeta') return t.kind;
   if (t.tag === 'TSkol') return t.kind;
+  if (t.tag === 'TVar') {
+    const k = lookupListKey(tvars, t.name);
+    if (!k) return terr(`undefined tvar in kindOf: ${t.name}`);
+    return k;
+  }
   if (t.tag === 'TCon')
     return lookupTCon(t.name, env) ||
       terr(`undefined type constructor ${showType(t)}`);
   if (t.tag === 'TApp') {
-    const f = kindOf(env, t.left);
+    const f = kindOf(env, t.left, tvars);
     if (f.tag !== 'KFun')
       return terr(`not a kind fun in left side of type application (${showType(t)}): ${showKind(f)}`);
     return f.right;
+  }
+  if (t.tag === 'TForall') {
+    let c: List<[Name, Kind]> = tvars;
+    for (let i = 0, l = t.names.length; i < l; i++) {
+      if (!t.names[i][1]) return terr(`tvar without kind in kindOf: ${showType(t)}`);
+      c = Cons(t.names[i] as [Name, Kind], c);
+    }
+    return kindOf(env, t.type, c);
   }
   return terr(`unexpected type ${showType(t)} in kindOf`);
 };
