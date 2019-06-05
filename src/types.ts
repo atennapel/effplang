@@ -134,9 +134,23 @@ export const showType = (t: Type): string => {
   if (t.tag === 'TVar') return showName(t.name);
   if (t.tag === 'TCon') return showName(t.name);
   if (t.tag === 'TMeta') return `?${t.id}${t.name ? `\$${showName(t.name)}` : ''}`;
-  // TRowExtend
-  // TFun
-  // TRow
-  // TApp
+  if (t.tag === 'TRowExtend') return `|${t.label}`;
+  if (isTFun(t)) {
+    const l = tfunLeft(t);
+    const ls = isTFun(l) ? `(${showType(l)})` : showType(l);
+    const e = tfunEff(t);
+    return `${ls} -> ${e === tRowEmpty ? '' : `${showType(e)} `}${showType(tfunRight(t))}`;
+  }
+  if (isTRow(t)) {
+    const f = flattenTRow(t);
+    return `<${f.labels.map(([l, t]) => `${l} : ${showType(t)}`)}${f.rest === tRowEmpty ? '' : ` | ${showType(f.rest)}`}>`;
+  }
+  if (t.tag === 'TApp') {
+    const r = t.right;
+    const rs = isTFun(r) || r.tag === 'TApp' ? `(${showType(r)})` : showType(r);
+    const l = t.left;
+    const ls = isTFun(r) ? `(${showType(l)})` : showType(l);
+    return `${ls} ${rs}`;
+  }
   return impossible('showType');
 };
