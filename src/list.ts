@@ -65,12 +65,12 @@ export const index = <T>(l: List<T>, i: number): T | null => {
   return null;
 };
 
-export const extend = <T>(name: string, val: T, rest: List<[string, T]>): List<[string, T]> =>
-  Cons([name, val] as [string, T], rest);
-export const lookup = <T, K>(l: List<[K, T]>, name: K): T | null => {
+export const extend = <K, T>(name: K, val: T, rest: List<[K, T]>): List<[K, T]> =>
+  Cons([name, val] as [K, T], rest);
+export const lookup = <K, T>(l: List<[K, T]>, name: K, eq: (a: K, b: K) => boolean = (x, y) => x === y): T | null => {
   while (l.tag === 'Cons') {
     const h = l.head;
-    if (h[0] === name) return h[1];
+    if (eq(h[0], name)) return h[1];
     l = l.tail;
   }
   return null;

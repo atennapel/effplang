@@ -1,11 +1,21 @@
 import { TFun, TVar, trow, tapp, TCon, tfun, showType } from './types';
 import { Name } from './name';
+import { abs, Var, showTerm } from './terms';
+import { typecheck } from './infer';
 
-const t = Name('t');
-const e = Name('e');
-const tList = Name('List');
+const t = 't';
+const e = 'e';
+const x = 'x';
 
 const tv = TVar;
 
-const ty = TFun(tv(t), trow([['get', tfun(tv(t), tv(t))]], tv(e)), tapp(TCon(tList), tv(t)));
-console.log(showType(ty));
+const v = Var;
+
+const term = abs([x], v(x));
+console.log(showTerm(term));
+try {
+  const ty = typecheck(term);
+  console.log(`${showType(ty.type)} ; ${showType(ty.eff)}`);
+} catch (err) {
+  console.log(err);
+}

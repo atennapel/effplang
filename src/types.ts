@@ -1,4 +1,4 @@
-import { Name, Id, showName } from './name';
+import { Name, TMetaId, freshTMetaId } from './name';
 import { impossible } from './util';
 
 export type Type
@@ -9,32 +9,34 @@ export type Type
   | TRowExtend;
 
 export interface TCon {
-  tag: 'TCon';
-  name: Name;
+  readonly tag: 'TCon';
+  readonly name: Name;
 }
 export const TCon = (name: Name): TCon =>
   ({ tag: 'TCon', name });
 
 export interface TVar {
-  tag: 'TVar';
-  name: Name;
+  readonly tag: 'TVar';
+  readonly name: Name;
 }
 export const TVar = (name: Name): TVar =>
   ({ tag: 'TVar', name });
 
 export interface TMeta {
-  tag: 'TMeta';
-  id: Id;
+  readonly tag: 'TMeta';
+  readonly id: TMetaId;
   name: Name | null;
   type: Type | null;
 }
-export const TMeta = (id: Id, name: Name | null = null, type: Type | null = null): TMeta =>
+export const TMeta = (id: TMetaId, name: Name | null = null, type: Type | null = null): TMeta =>
   ({ tag: 'TMeta', id, name, type });
+export const freshTMeta = (name: Name | null = null): TMeta =>
+  TMeta(freshTMetaId(), name);
 
 export interface TApp {
-  tag: 'TApp';
-  left: Type;
-  right: Type;
+  readonly tag: 'TApp';
+  readonly left: Type;
+  readonly right: Type;
 }
 export const TApp = (left: Type, right: Type): TApp =>
   ({ tag: 'TApp', left, right });
@@ -54,32 +56,30 @@ export const flattenTApp = (t: Type): { head: Type, tail: Type[] } => {
   return { head: c, tail: r.reverse() };
 };
 
-export const nRowEmpty = Name('{}');
-export const tRowEmpty = TCon(nRowEmpty);
+export const tRowEmpty = TCon('<>');
 
 export type Label = string;
 export interface TRowExtend {
-  tag: 'TRowExtend';
-  label: Label;
+  readonly tag: 'TRowExtend';
+  readonly label: Label;
 }
 export const TRowExtend = (label: Label): TRowExtend =>
   ({ tag: 'TRowExtend', label });
 
 export interface TFun {
-  tag: 'TApp';
-  left: {
-    tag: 'TApp';
-    left: {
-      tag: 'TApp';
-      left: TCon;
-      right: Type;
+  readonly tag: 'TApp';
+  readonly left: {
+    readonly tag: 'TApp';
+    readonly left: {
+      readonly tag: 'TApp';
+      readonly left: TCon;
+      readonly right: Type;
     };
-    right: Type;
+    readonly right: Type;
   };
-  right: Type;
+  readonly right: Type;
 }
-export const nFun = Name('->');
-export const tFun = TCon(nFun);
+export const tFun = TCon('->');
 export const TFun = (left: Type, eff: Type, right: Type): TFun =>
   TApp(TApp(TApp(tFun, left), eff), right) as TFun;
 export const isTFun = (t: Type): t is TFun =>
@@ -103,13 +103,13 @@ export const flattenTFun = (t: Type): Type[] => {
 };
 
 export interface TRow {
-  tag: 'TApp';
-  left: {
-    tag: 'TApp';
-    left: TRowExtend;
-    right: Type;
+  readonly tag: 'TApp';
+  readonly left: {
+    readonly tag: 'TApp';
+    readonly left: TRowExtend;
+    readonly right: Type;
   }
-  right: Type;
+  readonly right: Type;
 }
 export const TRow = (label: Label, type: Type, rest: Type): TRow =>
   TApp(TApp(TRowExtend(label), type), rest) as TRow;
@@ -131,9 +131,9 @@ export const flattenTRow = (t: Type): { labels: [Label, Type][], rest: Type } =>
 };
 
 export const showType = (t: Type): string => {
-  if (t.tag === 'TVar') return showName(t.name);
-  if (t.tag === 'TCon') return showName(t.name);
-  if (t.tag === 'TMeta') return `?${t.id}${t.name ? `\$${showName(t.name)}` : ''}`;
+  if (t.tag === 'TVar') return t.name;
+  if (t.tag === 'TCon') return t.name;
+  if (t.tag === 'TMeta') return `?${t.id}${t.name ? `\$${t.name}` : ''}`;
   if (t.tag === 'TRowExtend') return `|${t.label}`;
   if (isTFun(t)) {
     const l = tfunLeft(t);
@@ -153,4 +153,52 @@ export const showType = (t: Type): string => {
     return `${ls} ${rs}`;
   }
   return impossible('showType');
+};
+
+export const prune = (t: Type): Type => {
+  if (t.tag === 'TMeta') {
+    if (!t.type) return t;
+    return t.type = prune(t.type);
+  }
+  if (t.tag === 'TApp') return TApp(prune(t.left), prune(t.right));
+  return t;
+};
+
+export const occursTMeta = (m: TMeta, type: Type): boolean => {
+  if (type === m) return true;
+  if (type.tag === 'TMeta' && type.type)
+    return occursTMeta(m, type.type);
+  if (type.tag === 'TApp')
+    return occursTMeta(m, type.left) || occursTMeta(m, type.right);
+  return false;
+};
+
+export type Free = { [key: string]: boolean };
+export const freeTMeta = (type: Type, map: Free = {}): Free => {
+  if (type.tag === 'TMeta') {
+    if (type.type) return freeTMeta(type.type, map);
+    map[type.id] = true;
+    return map;
+  }
+  if (type.tag === 'TApp') {
+    freeTMeta(type.left, map);
+    freeTMeta(type.right, map);
+    return map;
+  }
+  return map;
+};
+
+export type TMetaCount = { [key: string]: number };
+export const countTMeta = (type: Type, map: TMetaCount = {}): TMetaCount => {
+  if (type.tag === 'TMeta') {
+    if (type.type) return countTMeta(type.type, map);
+    map[type.id] = (map[type.id] || 0) + 1;
+    return map;
+  }
+  if (type.tag === 'TApp') {
+    countTMeta(type.left, map);
+    countTMeta(type.right, map);
+    return map;
+  }
+  return map;
 };

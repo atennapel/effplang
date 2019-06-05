@@ -1,14 +1,6 @@
-export interface Name {
-  name: string;
-  module: string | null;
-}
-export const Name = (name: string, module: string | null = null): Name =>
-  ({ name, module });
+export type Name = string;
 
-export const showName = (n: Name): string =>
-  `${n.module ? `${n.module}.` : ''}${n.name}`;
-
-export type Id = number;
-let id: Id = 0;
-export const freshId = (): Id => id++;
-export const resetId = () => { id = 0 };
+export type TMetaId = number;
+let _tmetaid: TMetaId = 0;
+export const freshTMetaId = (): TMetaId => _tmetaid++;
+export const resetTMetaId = () => { _tmetaid = 0 };
