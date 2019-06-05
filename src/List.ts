@@ -67,7 +67,7 @@ export const index = <T>(l: List<T>, i: number): T | null => {
 
 export const extend = <T>(name: string, val: T, rest: List<[string, T]>): List<[string, T]> =>
   Cons([name, val] as [string, T], rest);
-export const lookup = <T>(l: List<[string, T]>, name: string): T | null => {
+export const lookup = <T, K>(l: List<[K, T]>, name: K): T | null => {
   while (l.tag === 'Cons') {
     const h = l.head;
     if (h[0] === name) return h[1];
