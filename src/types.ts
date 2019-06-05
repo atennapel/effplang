@@ -130,6 +130,9 @@ export const flattenTRow = (t: Type): { labels: [Label, Type][], rest: Type } =>
   return { labels: r, rest: c };
 };
 
+export const tRecord = TCon('Rec');
+export const tVariant = TCon('Var');
+
 export const showType = (t: Type): string => {
   if (t.tag === 'TVar') return t.name;
   if (t.tag === 'TCon') return t.name;
@@ -143,11 +146,19 @@ export const showType = (t: Type): string => {
   }
   if (isTRow(t)) {
     const f = flattenTRow(t);
-    return `<${f.labels.map(([l, t]) => `${l} : ${showType(t)}`)}${f.rest === tRowEmpty ? '' : ` | ${showType(f.rest)}`}>`;
+    return `<${f.labels.map(([l, t]) => `${l} : ${showType(t)}`).join(', ')}${f.rest === tRowEmpty ? '' : ` | ${showType(f.rest)}`}>`;
+  }
+  if (t.tag === 'TApp' && t.left === tRecord) {
+    if (isTRow(t.right)) return `{${showType(t.right).slice(1, -1)}}`;
+    return `{${showType(t.right)}}`;
+  }
+  if (t.tag === 'TApp' && t.left === tVariant) {
+    if (isTRow(t.right)) return `[${showType(t.right).slice(1, -1)}]`;
+    return `[${showType(t.right)}]`;
   }
   if (t.tag === 'TApp') {
     const r = t.right;
-    const rs = isTFun(r) || r.tag === 'TApp' ? `(${showType(r)})` : showType(r);
+    const rs = r.tag === 'TApp' && !isTRow(r) ? `(${showType(r)})` : showType(r);
     const l = t.left;
     const ls = isTFun(r) ? `(${showType(l)})` : showType(l);
     return `${ls} ${rs}`;

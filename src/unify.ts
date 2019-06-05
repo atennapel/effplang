@@ -1,4 +1,4 @@
-import { Type, showType, isTRow, TMeta, trowLabel, Label, TRow, trowType, trowRest, freshTMeta, occursTMeta } from './types';
+import { Type, showType, isTRow, TMeta, trowLabel, Label, TRow, trowType, trowRest, freshTMeta, occursTMeta, prune } from './types';
 import { terr } from './util';
 
 const rewriteTRow = (l: Label, row: Type): TRow => {
@@ -8,6 +8,7 @@ const rewriteTRow = (l: Label, row: Type): TRow => {
     return TRow(l, trowType(rest), TRow(trowLabel(row), trowType(row), trowRest(rest)));
   }
   if (row.tag === 'TMeta') {
+    if (row.type) return rewriteTRow(l, row.type);
     const tt = freshTMeta();
     const tr = freshTMeta();
     const nrow = TRow(l, tt, tr);
@@ -31,6 +32,7 @@ const unifyTMeta = (m: TMeta, t: Type): void => {
   m.type = t;
 };
 export const unify = (a: Type, b: Type): void => {
+  console.log(`unify ${showType(prune(a))} ~ ${showType(prune(b))}`);
   if (a === b) return;
   if (a.tag === 'TMeta') return unifyTMeta(a, b);
   if (b.tag === 'TMeta') return unifyTMeta(b, a);
