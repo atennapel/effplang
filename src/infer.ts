@@ -153,9 +153,17 @@ export const infer = (genv: GTEnv, lenv: LTEnv, term: Term): TypeEff => {
   }
   if (term.tag === 'Embed') {
     const ty = infer(genv, lenv, term.val);
-    const rest = freshTMeta();
+    const rest = freshTMeta('r');
     unify(TApp(tVariant, rest), ty.type);
     return TypeEff(TApp(tVariant, TRow(term.label, freshTMeta(), rest)), ty.eff);
+  }
+  if (term.tag === 'Extend') {
+    const tval = infer(genv, lenv, term.val);
+    const trec = infer(genv, lenv, term.term);
+    unify(tval.eff, trec.eff);
+    const rest = freshTMeta('r');
+    unify(TApp(tRecord, rest), trec.type);
+    return TypeEff(TApp(tRecord, TRow(term.label, tval.type, rest)), tval.eff);
   }
   return impossible('infer');
 };

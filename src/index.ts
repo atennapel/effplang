@@ -1,6 +1,6 @@
 import { TFun, TVar, trow, tapp, TCon, tfun, showType } from './types';
 import { Name } from './name';
-import { abs, Var, showTerm, OpCall, Let, Select, Inject, Restrict, Embed } from './terms';
+import { abs, Var, showTerm, OpCall, Let, Select, Inject, Restrict, Embed, Extend } from './terms';
 import { typecheck, GTEnv } from './infer';
 
 const t = 't';
@@ -18,7 +18,7 @@ const env: GTEnv = {
   False: tBool,
 };
 
-const term = abs(['x'], Embed('l', v('x')));
+const term = abs(['x', 'r'], Extend('l', v('x'), v('r')));
 console.log(showTerm(term));
 try {
   const ty = typecheck(env, term);
@@ -26,3 +26,10 @@ try {
 } catch (err) {
   console.log(err);
 }
+
+/**
+ * TODO:
+ *  - add case
+ *  - add case-end
+ *  - add handle and handler
+ */

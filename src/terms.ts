@@ -11,7 +11,8 @@ export type Term
   | Select
   | Inject
   | Restrict
-  | Embed;
+  | Embed
+  | Extend;
 
 export interface Var {
   readonly tag: 'Var';
@@ -110,6 +111,15 @@ export interface Embed {
 export const Embed = (label: Label, val: Term): Embed =>
   ({ tag: 'Embed', label, val });
 
+export interface Extend {
+  readonly tag: 'Extend';
+  readonly label: Label;
+  readonly val: Term;
+  readonly term: Term;
+}
+export const Extend = (label: Label, val: Term, term: Term): Extend =>
+  ({ tag: 'Extend', label, val, term });
+
 export const showTerm = (term: Term): string => {
   if (term.tag === 'Var') return `${term.name}`;
   if (term.tag === 'Abs') {
@@ -143,5 +153,7 @@ export const showTerm = (term: Term): string => {
     const ts = t.tag !== 'Var' && t.tag !== 'Abs' ? `(${showTerm(t)})` : showTerm(t);
     return `@+${term.label} ${ts}`;
   }
+  if (term.tag === 'Extend')
+    return `{${showTerm(term.term)} | ${term.label} += ${showTerm(term.val)}}`;
   return impossible('showTerm');
 };
