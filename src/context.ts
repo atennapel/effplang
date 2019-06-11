@@ -41,6 +41,7 @@ export const showContext = (c: Context = _context): string =>
   `[${c.map(showElem).join(', ')}]`;
 
 export const contextAdd = (e: Elem) => { _context.push(e) };
+export const contextAdd2 = (e: Elem, f: Elem) => { _context.push(e, f) };
 export const contextMark = () => {
   const m = freshEMarker();
   contextAdd(m);

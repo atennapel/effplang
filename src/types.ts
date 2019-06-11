@@ -124,11 +124,11 @@ export const showType = (t: Type): string => {
       .join(' ');
   if (t.tag === 'TForall') {
     const f = flattenTForall(t);
-    return `forall ${f.ns.map(([tv, k]) =>
+    return `∀${f.ns.map(([tv, k]) =>
       k && config.showKinds ?
         `(${tv} : ${showKind(k as Kind)})` :
         `${tv}`
-      ).join(' ')}. ${showType(t.type)}`;
+      ).join(' ')}. ${showType(f.type)}`;
   }
   return impossible('showType');
 };
@@ -148,4 +148,43 @@ export const prune = (t: Type): Type => {
     return t.type === b ? t : TForall(t.name, t.kind, b);
   }
   return t;
+};
+
+export const substTVar = (x: Name, s: Type, t: Type): Type => {
+  if (t.tag === 'TVar') return t.name === x ? s : t;
+  if (t.tag === 'TMeta' && t.type) return substTVar(x, s, t.type);
+  if (t.tag === 'TApp') {
+    const l = substTVar(x, s, t.left);
+    const r = substTVar(x, s, t.right);
+    return l === t.left && r === t.right ? t : TApp(l, r);
+  }
+  if (t.tag === 'TForall') {
+    if (t.name === x) return t;
+    const b = substTVar(x, s, t.type);
+    return b === t.type ? t : TForall(t.name, t.kind, b);
+  }
+  return t;
+};
+export const openTForall = (t: Type, tf: TForall) =>
+  substTVar(tf.name, t, tf.type);
+
+export const hasTMeta = (x: TMeta, t: Type): boolean => {
+  if (x === t) return true;
+  if (t.tag === 'TMeta' && t.type) return hasTMeta(x, t.type);
+  if (t.tag === 'TApp')
+    return hasTMeta(x, t.left) || hasTMeta(x, t.right);
+  if (t.tag === 'TForall') return hasTMeta(x, t.type);
+  return false;
+};
+
+export const tmetas = (t: Type, tms: TMeta[], res: TMeta[] = []): TMeta[] => {
+  if (t.tag === 'TMeta') {
+    if (t.type) return tmetas(t.type, tms, res);
+    if (tms.indexOf(t) >= 0 && res.indexOf(t) < 0) res.push(t);
+    return res;
+  }
+  if (t.tag === 'TApp')
+    return tmetas(t.right, tms, tmetas(t.left, tms, res));
+  if (t.tag === 'TForall') return tmetas(t.type, tms, res);
+  return res;
 };

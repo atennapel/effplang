@@ -1,12 +1,32 @@
 import { app, Var, abs, showTerm, Ann } from './terms';
-import { tforall, tapp, TCon, TVar, tfun } from './types';
+import { tforall, tapp, TCon, TVar, tfun, showType, Type } from './types';
 import { kfun, kType } from './kinds';
 import { config } from './config';
+import { infer } from './inference';
+import { initialGTEnv } from './env';
+
+config.debug = true;
+config.showKinds = true;
 
 const v = Var;
 const tv = TVar;
 
-config.showKinds = true;
+const tInt = TCon('Int');
+const tList = TCon('List');
 
-const term = Ann(app(v('f'), abs(['x', 'y'], v('x')), app(v('g'), v('h'))), tforall([['t', kfun(kfun(kType, kType), kType, kType)]], tfun(tapp(TCon('F'), tv('t')), tv('t'))));
+const tid = tforall([['t', kType]], tfun(tv('t'), tv('t')));
+
+const env = initialGTEnv();
+const tenv: { [key: string]: Type } = {
+  zero: tInt,
+  singleton: tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')))),
+  nil: tforall([['t', kType]], tapp(tList, tv('t'))),
+  id: tid,
+};
+for (let k in tenv) env.vars[k] = { type: tenv[k] };
+
+const term = Ann(abs(['x'], v('x')), tfun(tid, tid));
 console.log(showTerm(term));
+const ty = infer(env, term);
+console.log(showTerm(term));
+console.log(showType(ty));
