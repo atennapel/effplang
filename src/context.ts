@@ -68,3 +68,8 @@ export const contextIndexOfTVar = (t: TVar): number => {
   }
   return -1;
 };
+
+export const contextGetTVar = (t: TVar): ETVar | null => {
+  const i = contextIndexOfTVar(t);
+  return i < 0 ? null : _context[i] as ETVar;
+};
