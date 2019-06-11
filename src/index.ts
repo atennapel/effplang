@@ -25,7 +25,7 @@ const tenv: { [key: string]: Type } = {
 };
 for (let k in tenv) env.vars[k] = { type: tenv[k] };
 
-const term = app(Ann(v('single'), tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')))), [tid]), abs(['x'], v('x')));
+const term = abs(['x', 'y', 'z', 'a', 'b'], v('x'));
 console.log(showTerm(term));
 const ty = infer(env, term);
 console.log(showTerm(term));

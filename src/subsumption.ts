@@ -18,6 +18,8 @@ const subsumeTMeta = (x: TMeta, t: Type, contra: boolean): void => {
   if (x === t) return;
   if (t.tag === 'TCon') return solve(x, i, t);
   if (t.tag === 'TMeta') {
+    if (!x.name && t.name) x.name = t.name; 
+    if (!t.name && x.name) t.name = x.name;
     if (t.type) return subsumeTMeta(x, t.type, contra);
     const j = contextIndexOfTMeta(t);
     if (j < 0) return terr(`undefined tmeta ${showType(t)}`);

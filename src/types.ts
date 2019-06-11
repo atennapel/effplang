@@ -188,3 +188,14 @@ export const tmetas = (t: Type, tms: TMeta[], res: TMeta[] = []): TMeta[] => {
   if (t.tag === 'TForall') return tmetas(t.type, tms, res);
   return res;
 };
+
+export type TBinders = { [key: string]: true };
+export const tbinders = (t: Type, map: TBinders = {}): TBinders => {
+  if (t.tag === 'TForall') {
+    map[t.name] = true;
+    return tbinders(t.type, map);
+  }
+  if (t.tag === 'TApp')
+    return tbinders(t.right, tbinders(t.left, map));
+  return map;
+}

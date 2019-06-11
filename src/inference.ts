@@ -1,6 +1,6 @@
 import { GTEnv, LTEnv } from './env';
 import { Term, showTerm } from './terms';
-import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar } from './types';
+import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar, tbinders } from './types';
 import { contextMark, contextDrop, contextAdd, ETVar, contextIndexOfTMeta, contextReplace2, contextAdd2, EMarker, showElem, showContext } from './context';
 import { Nil, extend, lookup } from './list';
 import { log } from './config';
@@ -14,13 +14,24 @@ const generalize = (m: EMarker, t: Type): Type => {
   const dropped = contextDrop(m);
   const tms = tmetas(t, dropped.filter(t => t.tag === 'TMeta') as TMeta[]);
   const l = tms.length;
+  if (l === 0) return t;
+  const used = tbinders(t);
   const tvs: [Name, Kind][] = Array(l);
-  for (let i = 0; i < l; i++) {
-    const c = tms[i];
-    // TODO: better tvar naming
-    const name = `'${c.id}`;
-    c.type = TVar(name);
-    tvs[i] = [name, c.kind];
+  let i = 0;
+  let j = 0;
+  let k = 0;
+  while (i < l) {
+    const x = tms[i].name;
+    const v = x && !used[x] ? x :
+      `${String.fromCharCode(k + 97)}${j > 0 ? j : ''}`;
+    if (!used[v]) {
+      used[v] = true;
+      tms[i].type = TVar(v);
+      tvs[i] = [v, tms[i].kind];
+      i++;
+    }
+    k = (k + 1) % 26;
+    if (k === 0) j++;
   }
   return tforall(tvs, prune(t));
 };
