@@ -57,9 +57,11 @@ export const append = <T>(a: List<T>, b: List<T>): List<T> =>
 export const mapList = <T, R>(l: List<T>, fn: (val: T) => R): List<R> =>
   l.tag === 'Cons' ? Cons(fn(l.head), mapList(l.tail, fn)) : l;
 
-export const lookupList = <T>(l: List<T>, i: number): T | null => {
+export const extend = <K, T>(l: List<[K, T]>, k: K, v: T): List<[K, T]> =>
+  Cons([k, v], l);
+export const lookup = <K, T>(l: List<[K, T]>, k: K): T | null => {
   while (l.tag === 'Cons') {
-    if (i-- === 0) return l.head;
+    if (l.head[0] === k) return l.head[1];
     l = l.tail;
   }
   return null;
