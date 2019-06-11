@@ -76,7 +76,7 @@ export const showTerm = (t: Term): string => {
       .join(' ');
   if (t.tag === 'Ann') {
     const ts = t.ts.length === 0 ? '' :
-      ` @${t.ts.map(showType).join(' @')}`;
+      ` @${t.ts.map(t => `(${showType(t)})`).join(' @')}`;
     return `(${showTerm(t.term)} : ${showType(t.type)}${ts})`;
   }
   return impossible('showTerm');

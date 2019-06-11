@@ -42,10 +42,17 @@ export const synth = (genv: GTEnv, env: LTEnv, term: Term): Type => {
     return gty.type;
   }
   if (term.tag === 'Ann') {
-    // TODO: wfType + inferKinds
+    // TODO: wfType + inferKinds on term.type
     check(genv, env, term.term, term.type);
-    // TODO: do type applications
-    return term.type;
+    let ty = term.type;
+    for (let i = 0, l = term.ts.length; i < l; i++) {
+      const c = term.ts[i];
+      // TODO: wfType + inferKinds on c
+      if (ty.tag !== 'TForall')
+        return terr(`not a forall in ${showTerm(term)}`);
+      ty = openTForall(c, ty);
+    }
+    return ty;
   }
   if (term.tag === 'App') {
     const f = synth(genv, env, term.left);

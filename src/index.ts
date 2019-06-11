@@ -19,13 +19,13 @@ const tid = tforall([['t', kType]], tfun(tv('t'), tv('t')));
 const env = initialGTEnv();
 const tenv: { [key: string]: Type } = {
   zero: tInt,
-  singleton: tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')))),
+  single: tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')))),
   nil: tforall([['t', kType]], tapp(tList, tv('t'))),
   id: tid,
 };
 for (let k in tenv) env.vars[k] = { type: tenv[k] };
 
-const term = Ann(abs(['x'], v('x')), tfun(tid, tid));
+const term = app(Ann(v('single'), tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')))), [tid]), abs(['x'], v('x')));
 console.log(showTerm(term));
 const ty = infer(env, term);
 console.log(showTerm(term));
