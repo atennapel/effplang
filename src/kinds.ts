@@ -67,3 +67,12 @@ export const pruneKind = (k: Kind): Kind => {
   }
   return k;
 };
+
+export const eqKind = (a: Kind, b: Kind): boolean => {
+  if (a === b) return true;
+  if (a.tag === 'KCon' && b.tag === 'KCon')
+    return a.name === b.name;
+  if (a.tag === 'KFun' && b.tag === 'KFun')
+    return eqKind(a.left, b.left) && eqKind(a.right, b.right);
+  return false;
+};

@@ -96,7 +96,7 @@ export const check = (genv: GTEnv, env: LTEnv, term: Term, type: Type): void => 
     return;
   }
   const ty = synth(genv, env, term);
-  subsume(ty, type)
+  subsume(genv, ty, type)
 };
 
 export const synthapp = (genv: GTEnv, env: LTEnv, type: Type, term: Term): Type => {
