@@ -24,8 +24,13 @@ const tenv: { [key: string]: Type } = {
 };
 for (let k in tenv) globalenv.vars[k] = { type: tenv[k] };
 
-const term = abs(['x', 'y', 'z', 'a', 'b'], v('x'));
+const term = Ann(abs(['x'], v('x')), tforall([['f', null], ['t', null]], tfun(tapp(tv('f'), tv('t')), tapp(tv('f'), tv('t')))));
 console.log(showTerm(term));
 const ty = infer(term);
 console.log(showTerm(term));
 console.log(showType(ty));
+
+/**
+ * TODO:
+ * - definitions
+ */

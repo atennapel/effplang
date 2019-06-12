@@ -76,3 +76,11 @@ export const eqKind = (a: Kind, b: Kind): boolean => {
     return eqKind(a.left, b.left) && eqKind(a.right, b.right);
   return false;
 };
+
+export const hasKMeta = (x: KMeta, t: Kind): boolean => {
+  if (x === t) return true;
+  if (t.tag === 'KMeta' && t.kind) return hasKMeta(x, t.kind);
+  if (t.tag === 'KFun')
+    return hasKMeta(x, t.left) || hasKMeta(x, t.right);
+  return false;
+};

@@ -5,9 +5,10 @@ import { contextMark, contextDrop, contextAdd, ETVar, contextIndexOfTMeta, conte
 import { Nil, extend, lookup } from './list';
 import { log } from './config';
 import { terr } from './util';
-import { kType, Kind } from './kinds';
+import { kType, Kind, eqKind, showKind } from './kinds';
 import { Name, resetId } from './names';
 import { subsume } from './subsumption';
+import { inferKind } from './kindinference';
 
 const generalize = (m: EMarker, t: Type): Type => {
   log(() => `generalize ${showElem(m)} ${showType(t)} | ${showContext()}`);
@@ -55,14 +56,17 @@ export const synth = (env: LTEnv, term: Term): Type => {
     return gty.type;
   }
   if (term.tag === 'Ann') {
-    // TODO: wfType + inferKinds on term.type
-    check(env, term.term, term.type);
-    let ty = term.type;
+    const [kind, type] = inferKind(term.type);
+    if (!eqKind(kind, kType))
+      return terr(`type not of kind ${showKind(kType)} in ${showTerm(term)}`);
+    check(env, term.term, type);
+    let ty = type;
     for (let i = 0, l = term.ts.length; i < l; i++) {
-      const c = term.ts[i];
-      // TODO: wfType + inferKinds on c
+      const [kc, c] = inferKind(term.ts[i]);
       if (ty.tag !== 'TForall')
         return terr(`not a forall in ${showTerm(term)}`);
+      if (!eqKind(kc, ty.kind || kType))
+        return terr(`kind mismatch (${showKind(ty.kind || kType)} != ${showKind(kc)}) in type application (${showType(ty)} @(${showType(c)})) in ${showTerm(term)}`);
       ty = openTForall(c, ty);
     }
     return ty;

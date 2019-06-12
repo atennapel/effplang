@@ -125,8 +125,8 @@ export const showType = (t: Type): string => {
   if (t.tag === 'TForall') {
     const f = flattenTForall(t);
     return `∀${f.ns.map(([tv, k]) =>
-      k && config.showKinds ?
-        `(${tv} : ${showKind(k as Kind)})` :
+      config.showKinds ?
+        `(${tv} : ${k ? showKind(k) : '?'})` :
         `${tv}`
       ).join(' ')}. ${showType(f.type)}`;
   }
