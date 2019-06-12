@@ -30,4 +30,5 @@ export const initialGTEnv = (): GTEnv => ({
   },
   vars: {},
 });
-// TODO: make global var of GTEnv
+
+export let globalenv = initialGTEnv();

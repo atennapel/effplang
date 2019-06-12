@@ -3,7 +3,7 @@ import { tforall, tapp, TCon, TVar, tfun, showType, Type } from './types';
 import { kfun, kType } from './kinds';
 import { config } from './config';
 import { infer } from './inference';
-import { initialGTEnv } from './env';
+import { globalenv } from './env';
 
 config.debug = true;
 config.showKinds = true;
@@ -16,17 +16,16 @@ const tList = TCon('List');
 
 const tid = tforall([['t', kType]], tfun(tv('t'), tv('t')));
 
-const env = initialGTEnv();
 const tenv: { [key: string]: Type } = {
   zero: tInt,
   single: tforall([['t', kType]], tfun(tv('t'), tapp(tList, tv('t')))),
   nil: tforall([['t', kType]], tapp(tList, tv('t'))),
   id: tid,
 };
-for (let k in tenv) env.vars[k] = { type: tenv[k] };
+for (let k in tenv) globalenv.vars[k] = { type: tenv[k] };
 
 const term = abs(['x', 'y', 'z', 'a', 'b'], v('x'));
 console.log(showTerm(term));
-const ty = infer(env, term);
+const ty = infer(term);
 console.log(showTerm(term));
 console.log(showType(ty));
