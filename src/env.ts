@@ -13,7 +13,7 @@ export interface TypeInfo {
   readonly kind: Kind;
 }
 export interface VarInfo {
-  readonly type: Type;
+  type: Type;
 }
 
 export interface GTEnv {

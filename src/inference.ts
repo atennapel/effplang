@@ -9,6 +9,7 @@ import { kType, Kind, eqKind, showKind } from './kinds';
 import { Name, resetId } from './names';
 import { subsume } from './subsumption';
 import { inferKind } from './kindinference';
+import { Def, showDefs } from './definitions';
 
 const generalize = (m: EMarker, t: Type): Type => {
   log(() => `generalize ${showElem(m)} ${showType(t)} | ${showContext()}`);
@@ -46,7 +47,7 @@ export const infer = (term: Term): Type => {
   return generalize(m, ty);
 };
 
-export const synth = (env: LTEnv, term: Term): Type => {
+const synth = (env: LTEnv, term: Term): Type => {
   log(() => `synth ${showTerm(term)}`);
   if (term.tag === 'Var') {
     const lty = lookup(env, term.name);
@@ -86,7 +87,7 @@ export const synth = (env: LTEnv, term: Term): Type => {
   return terr(`cannot synth ${showTerm(term)}`);
 };
 
-export const check = (env: LTEnv, term: Term, type: Type): void => {
+const check = (env: LTEnv, term: Term, type: Type): void => {
   log(() => `check ${showTerm(term)} : ${showType(type)}`);
   if (type.tag === 'TForall') {
     const m = contextMark();
@@ -105,7 +106,7 @@ export const check = (env: LTEnv, term: Term, type: Type): void => {
   subsume(ty, type)
 };
 
-export const synthapp = (env: LTEnv, type: Type, term: Term): Type => {
+const synthapp = (env: LTEnv, type: Type, term: Term): Type => {
   log(() => `synthapp ${showType(type)} @ ${showTerm(term)}`);
   if (type.tag === 'TForall') {
     const tm = freshTMeta(type.kind || kType, type.name);
@@ -128,4 +129,41 @@ export const synthapp = (env: LTEnv, type: Type, term: Term): Type => {
     return b;
   }
   return terr(`cannot synthapp ${showType(type)} @ ${showTerm(term)}`);
+};
+
+export const inferDefs = (ds: Def[]): void => {
+  log(() => `inferDefs ${showDefs(ds)}`);
+  resetId();
+  resetContext();
+  
+  // add types to env
+  for (let d of ds) {
+    if (globalenv.vars[d.name]) return terr(`duplicate let ${d.name}`);
+    if (d.type) {
+      const [kind, type] = inferKind(d.type);
+      if (!eqKind(kind, kType))
+        return terr(`type annotation for ${d.name} is not of kind ${showKind(kType)}`);
+      globalenv.vars[d.name] = { type };
+    }
+  }
+
+  // infer bodies
+  for (let d of ds) {
+    log(() => `inferDef ${d.name}`);
+    if (globalenv.vars[d.name]) {
+      // check type
+      const oldtype = globalenv.vars[d.name].type;
+      const m = contextMark();
+      check(Nil, d.val, oldtype);
+      contextDrop(m);
+    } else {
+      // synth type
+      const m = contextMark();
+      const mv = freshTMeta(kType);
+      contextAdd(mv);
+      const ty = synth(extend(Nil, d.name, mv), d.val);
+      const type = generalize(m, ty);
+      globalenv.vars[d.name] = { type };
+    }
+  }
 };
