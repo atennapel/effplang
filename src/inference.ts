@@ -222,7 +222,7 @@ export const inferDefs = (ds: Def[]): void => {
       const mv = freshTMeta(kType);
       contextAdd(mv);
       const ty = synth(extend(Nil, d.name, mv), d.val);
-      const type = generalize(m, ty);
+      const type = prune(generalize(m, ty));
       globalenv.vars[d.name] = { type };
     }
   }

@@ -32,11 +32,13 @@ console.log(showType(ty));
 const ds: Def[] = [
   DType('Bool', [], [['True', []], ['False', []]]),
   DType('List', [['t', null]], [['Nil', []], ['Cons', [tv('t'), tapp(TCon('List'), tv('t'))]]]),
+  DType('Fix', [['f', null]], [['Fix', [tapp(tv('f'), tapp(TCon('Fix'), tv('f')))]]]),
   DLet('const', null, abs(['x', 'y'], v('x'))),
   DLet('const2', null, app(v('const'), v('id'))),
   DLet('id', tid, abs(['x'], v('x'))),
   DLet('map', null, abs(['f', 'l'], app(v('?List'), v('l'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('map'), v('f'), v('t'))))))),
   DLet('single', null, abs(['x'], app(v('Cons'), v('x'), v('Nil')))),
+  DLet('test', null, app(v('Fix'), v('Nil'))),
 ];
 console.log(showDefs(ds));
 inferDefs(ds);
