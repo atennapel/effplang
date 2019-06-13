@@ -10,7 +10,7 @@ export interface KindInfo {
 }
 export interface TypeInfo {
   readonly con: TCon;
-  readonly kind: Kind;
+  kind: Kind;
 }
 export interface VarInfo {
   type: Type;

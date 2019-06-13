@@ -1,14 +1,14 @@
 import { LTEnv, globalenv } from './env';
 import { Term, showTerm } from './terms';
-import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar, tbinders } from './types';
+import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar, tbinders, TCon, tfunFrom, tappFrom, tfun } from './types';
 import { contextMark, contextDrop, contextAdd, ETVar, contextIndexOfTMeta, contextReplace2, contextAdd2, EMarker, showElem, showContext, resetContext } from './context';
 import { Nil, extend, lookup } from './list';
 import { log } from './config';
 import { terr } from './util';
-import { kType, Kind, eqKind, showKind } from './kinds';
+import { kType, Kind, eqKind, showKind, KMeta, freshKMeta, kfunFrom } from './kinds';
 import { Name, resetId } from './names';
 import { subsume } from './subsumption';
-import { inferKind } from './kindinference';
+import { inferKind, unifyKinds, pruneKindInType, pruneKindDefault } from './kindinference';
 import { Def, showDefs } from './definitions';
 
 const generalize = (m: EMarker, t: Type): Type => {
@@ -135,9 +135,68 @@ export const inferDefs = (ds: Def[]): void => {
   log(() => `inferDefs ${showDefs(ds)}`);
   resetId();
   resetContext();
-  
+
+  const tvars: { [key: string]: [Name, Kind][] } = {};
+
+  // add kinds to env
+  for (let d of ds) {
+    if (d.tag !== 'DType') continue;
+    if (globalenv.types[d.name]) return terr(`duplicate type ${d.name}`);
+    const con = TCon(d.name);
+    const tvs: [Name, Kind][] = [];
+    const ks: Kind[] = d.params.map(([x, k]) => {
+      const ki = k || freshKMeta();
+      tvs.push([x, ki]);
+      return ki;
+    });
+    tvars[d.name] = tvs;
+    ks.push(kType)
+    const kind = kfunFrom(ks);
+    globalenv.types[d.name] = { con, kind };
+  }
+
+  // infer constructors
+  for (let d of ds) {
+    if (d.tag !== 'DType') continue;
+    log(() => `inferType ${d.name}`);
+    const cname = `?${d.name}`;
+    if (globalenv.vars[cname]) return terr(`duplicate case function ${cname}`);
+    const m = contextMark();
+    for (let [x, k] of tvars[d.name]) contextAdd(ETVar(x, k));
+    const tconapp = tappFrom([globalenv.types[d.name].con as Type].concat(tvars[d.name].map(([x, _]) => TVar(x))));
+    for (let [c, ts] of d.cons) {
+      if (globalenv.vars[c]) return terr(`duplicate constructor ${c}`);
+      log(() => `inferCon ${c}`);
+      const tys: Type[] = [];
+      for (let t of ts) {
+        const [k, ty] = inferKind(t);
+        unifyKinds(k, kType);
+        tys.push(ty);
+      }
+      tys.push(tconapp);
+      globalenv.vars[c] = {
+        type: tforall(tvars[d.name], tfunFrom(tys)),
+      };
+    }
+    globalenv.types[d.name].kind = pruneKindDefault(globalenv.types[d.name].kind);
+    for (let [c, _] of d.cons)
+      globalenv.vars[c].type = pruneKindInType(globalenv.vars[c].type);
+    // TODO: carefully choose 'r'
+    const r = '_r';
+    const tr = TVar(r);
+    const type = pruneKindInType(tforall(
+      tvars[d.name].concat([[r, kType]]),
+      tfunFrom([tconapp].concat(d.cons.map(([_, ts]) =>
+        ts.length === 0 ? tr : tfunFrom(ts.concat(tr))
+      ), tr)),
+    ));
+    globalenv.vars[cname] = { type };
+    contextDrop(m);
+  }
+
   // add types to env
   for (let d of ds) {
+    if (d.tag !== 'DLet') continue;
     if (globalenv.vars[d.name]) return terr(`duplicate let ${d.name}`);
     if (d.type) {
       const [kind, type] = inferKind(d.type);
@@ -149,6 +208,7 @@ export const inferDefs = (ds: Def[]): void => {
 
   // infer bodies
   for (let d of ds) {
+    if (d.tag !== 'DLet') continue;
     log(() => `inferDef ${d.name}`);
     if (globalenv.vars[d.name]) {
       // check type

@@ -13,7 +13,7 @@ const unifyKMeta = (m: KMeta, k: Kind): void => {
     return terr(`occurs check failed in kind ${showKind(m)} in ${showKind(k)}`);
   m.kind = k;
 };
-const unifyKinds = (a: Kind, b: Kind): void => {
+export const unifyKinds = (a: Kind, b: Kind): void => {
   log(() => `unifyKinds ${showKind(a)} ~ ${showKind(b)}`);
   if (a === b) return;
   if (a.tag === 'KCon' && b.tag === 'KCon' && a.name === b.name) return;
@@ -87,7 +87,18 @@ export const inferKindR = (t: Type, kmetas: KMeta[]): [Kind, Type] => {
   return impossible('inferKindR');
 };
 
-const pruneKindInType = (t: Type): Type => {
+export const pruneKindDefault = (k: Kind): Kind => {
+  if (k.tag === 'KMeta')
+    return k.kind = k.kind ? pruneKindDefault(k.kind) : kType;
+  if (k.tag === 'KFun') {
+    const l = pruneKindDefault(k.left);
+    const r = pruneKindDefault(k.right);
+    return l === k.left && r === k.right ? k : KFun(l, r);
+  }
+  return k;
+};
+
+export const pruneKindInType = (t: Type): Type => {
   if (t.tag === 'TApp') {
     const l = pruneKindInType(t.left);
     const r = pruneKindInType(t.right);
