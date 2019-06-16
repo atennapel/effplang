@@ -100,7 +100,7 @@ const synth = (env: LTEnv, term: Term): TypeEff => {
   }
   if (term.tag === 'Abs') {
     const a = freshTMeta(kType);
-    const e = freshEff();
+    const e = freshTMeta(kEffectRow, 'e');
     const b = freshTMeta(kType);
     const m = contextMark();
     contextAdd3(a, e, b);
@@ -132,6 +132,7 @@ const check = (env: LTEnv, term: Term, type: Type, eff: Type): void => {
   }
   if (term.tag === 'Let') {
     const v = synth(env, term.val);
+    console.log(`LET VAL SYNTH DONE: ${showType(prune(v.type))} ; ${showType(prune(v.eff))}`);
     unify(v.eff, eff);
     check(extend(env, term.name, v.type), term.body, type, eff);
   }
@@ -161,7 +162,7 @@ const synthapp = (env: LTEnv, type: Type, term: Term): TypeEff => {
     const i = contextIndexOfTMeta(type);
     if (i < 0) return terr(`undefined tmeta ${showType(type)}`);
     const a = freshTMeta(kType);
-    const e = freshEff();
+    const e = freshTMeta(kEffectRow, 'e');
     const b = freshTMeta(kType);
     contextReplace3(i, a, e, b);
     type.type = TFun(a, e, b);

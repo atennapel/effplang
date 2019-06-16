@@ -1,11 +1,12 @@
 import { terr } from './util';
-import { showType, Type, TMeta, isTFun, freshTMeta, openTForall, tfunR, tfunL, hasTMeta, TFun, TApp, isTEffExtend, teffEff, flattenTApp, TCon, TEffExtend, teffRest, tfunE } from './types';
+import { showType, Type, TMeta, isTFun, freshTMeta, openTForall, tfunR, tfunL, hasTMeta, TFun, TApp, isTEffExtend, teffEff, flattenTApp, TCon, TEffExtend, teffRest, tfunE, prune } from './types';
 import { contextRemove, showContext, contextIndexOfTVar, contextAdd, contextMark, ETVar, contextDrop, contextIndexOfTMeta, contextReplace2, contextReplace3 } from './context';
 import { log } from './config';
 import { kType, eqKind, showKind, kEffectRow } from './kinds';
 import { kindOf } from './kindinference';
 
 const rewriteTEff = (c: TCon, full: Type, other: Type): TEffExtend => {
+  log(() => `rewriteTEff ${showType(c)} ; ${showType(full)} ; ${showType(other)}`);
   if (isTEffExtend(other)) {
     const othereff = teffEff(other);
     const effcon = flattenTApp(othereff)[0];
@@ -31,13 +32,13 @@ const rewriteTEff = (c: TCon, full: Type, other: Type): TEffExtend => {
 };
 
 const solve = (x: TMeta, i: number, t: Type): void => {
-  // log(() => `solve ${showType(x)} ${i} ${showType(t)} | ${showContext()}`);
+  log(() => `solve ${showType(x)} ${i} ${showType(t)} | ${showContext()}`);
   contextRemove(i);
   x.type = t;
 };
 
 const subsumeTMeta = (x: TMeta, t: Type, contra: boolean): void => {
-  // log(() => `subsumeTMeta ${contra ? `${showType(t)} =: ${showType(x)}` : `${showType(x)} := ${showType(t)}`}`);
+  log(() => `subsumeTMeta ${contra ? `${showType(t)} =: ${showType(x)}` : `${showType(x)} := ${showType(t)}`}`);
   if (x.type) return contra ? subsume(t, x.type) : subsume(x.type, t);
   const i = contextIndexOfTMeta(x);
   if (i < 0) return terr(`undefined tmeta ${showType(x)}`);
@@ -83,7 +84,7 @@ const subsumeTMeta = (x: TMeta, t: Type, contra: boolean): void => {
 };
 
 export const subsume = (t1: Type, t2: Type): void => {
-  log(() => `subsume ${showType(t1)} <: ${showType(t2)} | ${showContext()}`);
+  log(() => `subsume ${showType(prune(t1))} <: ${showType(prune(t2))} | ${showContext()}`);
   if (t1 === t2) return;
   const ka = kindOf(t1);
   const kb = kindOf(t2);
@@ -98,12 +99,15 @@ export const subsume = (t1: Type, t2: Type): void => {
     return;
   }
   if (isTEffExtend(t1) && isTEffExtend(t2)) {
+    console.log(`HERE`);
     const eff = teffEff(t1);
     const effcon = flattenTApp(eff)[0];
     if (effcon.tag !== 'TCon')
       return terr(`effect should be a type constructor but got ${showType(effcon)}`);
     const rewr = rewriteTEff(effcon, eff, t2);
+    console.log('unify effects');
     unify(eff, teffEff(rewr));
+    console.log('unify rest');
     unify(teffRest(t1), teffRest(t2));
     return;
   }
@@ -127,7 +131,7 @@ export const subsume = (t1: Type, t2: Type): void => {
   }
   if (t1.tag === 'TMeta') return subsumeTMeta(t1, t2, false);
   if (t2.tag === 'TMeta') return subsumeTMeta(t2, t1, true);
-  return terr(`cannot subsume ${showType(t1)} <: ${showType(t2)}`);
+  return terr(`cannot subsume ${showType(prune(t1))} <: ${showType(prune(t2))}`);
 };
 
 export const unify = (t1: Type, t2: Type): void => {
