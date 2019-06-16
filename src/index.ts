@@ -1,4 +1,4 @@
-import { app, Var, abs, showTerm, Ann } from './terms';
+import { app, Var, abs, showTerm, Ann, Let } from './terms';
 import { tforall, tapp, TCon, TVar, tfun, showType, Type } from './types';
 import { kfun, kType, showKind } from './kinds';
 import { config } from './config';
@@ -27,6 +27,7 @@ const ds: Def[] = [
   DType('Bool', [], [['True', []], ['False', []]]),
   DType('List', [['t', null]], [['Nil', []], ['Cons', [tv('t'), tapp(TCon('List'), tv('t'))]]]),
   DType('Fix', [['f', null]], [['Fix', [tapp(tv('f'), tapp(TCon('Fix'), tv('f')))]]]),
+  DType('Pair', [['a', null], ['b', null]], [['Pair', [tv('a'), tv('b')]]]),
   DEffect('Flip', [], [['flip', TCon('Unit'), TCon('Bool')]]),
   DEffect('State', [['t', null]], [['get', TCon('Unit'), tv('t')], ['put', tv('t'), TCon('Unit')]]),
   DLet('const', null, abs(['x', 'y'], v('x'))),
@@ -35,6 +36,7 @@ const ds: Def[] = [
   DLet('map', null, abs(['f', 'l'], app(v('?List'), v('l'), abs(['_'], v('Nil')), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('map'), v('f'), v('t'))))))),
   DLet('single', null, abs(['x'], app(v('Cons'), v('x'), v('Nil')))),
   DLet('test', null, app(v('Fix'), v('Nil'))),
+  DLet('test2', null, Let('id', abs(['x'], v('x')), app(v('Pair'), app(v('id'), v('True')), app(v('id'), v('Unit'))))),
 ];
 console.log(showDefs(ds));
 inferDefs(ds);
@@ -45,5 +47,8 @@ for (let k in globalenv.vars)
   console.log(`${k} : ${showType(globalenv.vars[k].type)}`);
 
 /**
- * effects on function arrow
+ * - effects on function arrow
+ * - opening effects
+ * - closing effects
+ * - propogating return type in application check (?)
  */

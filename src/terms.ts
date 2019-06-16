@@ -6,6 +6,7 @@ export type Term
   = Var
   | Abs
   | App
+  | Let
   | Ann;
 
 export interface Var {
@@ -54,6 +55,26 @@ export const flattenApp = (term: Term): Term[] => {
   return r.reverse();
 };
 
+export interface Let {
+  readonly tag: 'Let';
+  readonly name: Name;
+  readonly val: Term;
+  readonly body: Term;
+}
+export const Let = (name: Name, val: Term, body: Term): Let =>
+  ({ tag: 'Let', name, val, body });
+export const lt = (ns: [Name, Term][], body: Term): Term =>
+  ns.reduceRight((x, [n, v]) => Let(n, v, x), body);
+export const flattenLet = (term: Term): { ns: [Name, Term][], body: Term } => {
+  let c = term;
+  const ns: [Name, Term][] = [];
+  while (c.tag === 'Let') {
+    ns.push([c.name, c.val]);
+    c = c.body;
+  }
+  return { ns, body: c };
+};
+
 export interface Ann {
   readonly tag: 'Ann';
   readonly term: Term;
@@ -74,6 +95,9 @@ export const showTerm = (t: Term): string => {
       .map(t => t.tag === 'Abs' || t.tag === 'App' ?
         `(${showTerm(t)})` : showTerm(t))
       .join(' ');
+  if (t.tag === 'Let')
+    return `let ${t.name} = ${t.val.tag === 'Abs' ? `(${showTerm(t.val)})` :
+      showTerm(t.val)} in ${showTerm(t.body)}`;
   if (t.tag === 'Ann') {
     const ts = t.ts.length === 0 ? '' :
       ` @${t.ts.map(t => `(${showType(t)})`).join(' @')}`;

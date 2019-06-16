@@ -76,6 +76,10 @@ const synth = (env: LTEnv, term: Term): Type => {
     const f = synth(env, term.left);
     return synthapp(env, f, term.right);
   }
+  if (term.tag === 'Let') {
+    const v = synth(env, term.val);
+    return synth(extend(env, term.name, v), term.body);
+  }
   if (term.tag === 'Abs') {
     const a = freshTMeta(kType);
     const b = freshTMeta(kType);
@@ -101,6 +105,10 @@ const check = (env: LTEnv, term: Term, type: Type): void => {
     check(extend(env, term.name, tfunL(type)), term.body, tfunR(type));
     contextDrop(m);
     return;
+  }
+  if (term.tag === 'Let') {
+    const v = synth(env, term.val);
+    return check(extend(env, term.name, v), term.body, type);
   }
   const ty = synth(env, term);
   subsume(ty, type)
