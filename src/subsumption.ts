@@ -17,22 +17,27 @@ const rewriteTEff = (c: TCon, full: Type, other: Type): TEffExtend => {
   }
   if (other.tag === 'TMeta') {
     if (other.type) return rewriteTEff(c, full, other.type);
-    const tv = freshTMeta(kEffectRow, 'e');
     if (hasTMeta(other, full))
       return terr(`occurs check failed in effect ${showType(other)} in ${showType(full)}`);
-    return other.type = TEffExtend(full, tv);
+    const tv = freshTMeta(kEffectRow, 'e');
+    contextAdd(tv);
+    const ty = TEffExtend(full, tv);
+    const i = contextIndexOfTMeta(other);
+    if (i < 0) return terr(`undefined tmeta in rewriteEff ${showType(other)}`);
+    solve(other, i, ty);
+    return ty;
   }
   return terr(`cannot find ${showType(c)} in row ${showType(other)}`);
 };
 
 const solve = (x: TMeta, i: number, t: Type): void => {
-  log(() => `solve ${showType(x)} ${i} ${showType(t)} | ${showContext()}`);
+  // log(() => `solve ${showType(x)} ${i} ${showType(t)} | ${showContext()}`);
   contextRemove(i);
   x.type = t;
 };
 
 const subsumeTMeta = (x: TMeta, t: Type, contra: boolean): void => {
-  log(() => `subsumeTMeta ${contra ? `${showType(t)} =: ${showType(x)}` : `${showType(x)} := ${showType(t)}`}`);
+  // log(() => `subsumeTMeta ${contra ? `${showType(t)} =: ${showType(x)}` : `${showType(x)} := ${showType(t)}`}`);
   if (x.type) return contra ? subsume(t, x.type) : subsume(x.type, t);
   const i = contextIndexOfTMeta(x);
   if (i < 0) return terr(`undefined tmeta ${showType(x)}`);
@@ -126,6 +131,7 @@ export const subsume = (t1: Type, t2: Type): void => {
 };
 
 export const unify = (t1: Type, t2: Type): void => {
+  log(() => `unify ${showType(t1)} ~ ${showType(t2)} | ${showContext()}`);
   subsume(t1, t2);
   subsume(t2, t1);
 };

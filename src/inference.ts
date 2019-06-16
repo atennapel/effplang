@@ -1,15 +1,21 @@
 import { LTEnv, globalenv } from './env';
 import { Term, showTerm } from './terms';
-import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar, tbinders, TCon, tfunFrom, tappFrom, tfun, TEffExtend, tEffEmpty } from './types';
+import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar, tbinders, TCon, tfunFrom, tappFrom, tfun, TEffExtend, tEffEmpty, tfunE, flattenTEffExtend, teff, teffFrom } from './types';
 import { contextMark, contextDrop, contextAdd, ETVar, contextIndexOfTMeta, contextReplace2, contextAdd2, EMarker, showElem, showContext, resetContext, contextReplace3, contextAdd3 } from './context';
 import { Nil, extend, lookup } from './list';
 import { log } from './config';
 import { terr } from './util';
 import { kType, Kind, eqKind, showKind, KMeta, freshKMeta, kfunFrom, kEffect, kEffectRow } from './kinds';
 import { Name, resetId, freshId } from './names';
-import { subsume } from './subsumption';
+import { subsume, unify } from './subsumption';
 import { inferKind, unifyKinds, pruneKindInType, pruneKindDefault } from './kindinference';
 import { Def, showDefs } from './definitions';
+
+export interface TypeEff {
+  readonly type: Type;
+  readonly eff: Type;
+}
+export const TypeEff = (type: Type, eff: Type): TypeEff => ({ type, eff });
 
 const generalize = (m: EMarker, t: Type): Type => {
   log(() => `generalize ${showElem(m)} ${showType(t)} | ${showContext()}`);
@@ -44,23 +50,31 @@ export const infer = (term: Term): Type => {
   resetContext();
   const m = contextMark();
   const ty = synth(Nil, term);
-  return generalize(m, ty);
+  unify(ty.eff, tEffEmpty);
+  return generalize(m, ty.type);
 };
 
-const synth = (env: LTEnv, term: Term): Type => {
+const freshEff = () => {
+  const m = freshTMeta(kEffectRow, 'e');
+  contextAdd(m);
+  return m;
+};
+
+const synth = (env: LTEnv, term: Term): TypeEff => {
   log(() => `synth ${showTerm(term)}`);
   if (term.tag === 'Var') {
     const lty = lookup(env, term.name);
-    if (lty) return lty;
+    if (lty) return TypeEff(lty, freshEff());
     const gty = globalenv.vars[term.name];
     if (!gty) return terr(`undefined var ${term.name}`);
-    return gty.type;
+    return TypeEff(gty.type, freshEff());
   }
   if (term.tag === 'Ann') {
     const [kind, type] = inferKind(term.type);
     if (!eqKind(kind, kType))
       return terr(`type not of kind ${showKind(kType)} in ${showTerm(term)}`);
-    check(env, term.term, type);
+    const e = freshEff();
+    check(env, term.term, type, e);
     let ty = type;
     for (let i = 0, l = term.ts.length; i < l; i++) {
       const [kc, c] = inferKind(term.ts[i]);
@@ -70,52 +84,63 @@ const synth = (env: LTEnv, term: Term): Type => {
         return terr(`kind mismatch (${showKind(ty.kind || kType)} != ${showKind(kc)}) in type application (${showType(ty)} @(${showType(c)})) in ${showTerm(term)}`);
       ty = openTForall(c, ty);
     }
-    return ty;
+    return TypeEff(ty, e);
   }
   if (term.tag === 'App') {
     const f = synth(env, term.left);
-    return synthapp(env, f, term.right);
+    const r = synthapp(env, f.type, term.right);
+    unify(f.eff, r.eff);
+    return r;
   }
   if (term.tag === 'Let') {
     const v = synth(env, term.val);
-    return synth(extend(env, term.name, v), term.body);
+    const r = synth(extend(env, term.name, v.type), term.body);
+    unify(v.eff, r.eff);
+    return r;
   }
   if (term.tag === 'Abs') {
     const a = freshTMeta(kType);
-    const e = freshTMeta(kEffectRow);
+    const e = freshEff();
     const b = freshTMeta(kType);
     const m = contextMark();
     contextAdd3(a, e, b);
-    check(extend(env, term.name, a), term.body, b);
-    return generalize(m, TFun(a, e, b));
+    check(extend(env, term.name, a), term.body, b, e);
+    const pe = prune(e);
+    if (pe.tag === 'TMeta' || pe === tEffEmpty) {
+      unify(pe, tEffEmpty);
+      return TypeEff(generalize(m, TFun(a, pe, b)), freshEff());
+    } else
+      return TypeEff(TFun(a, pe, b), freshEff());
   }
   return terr(`cannot synth ${showTerm(term)}`);
 };
 
-const check = (env: LTEnv, term: Term, type: Type): void => {
-  log(() => `check ${showTerm(term)} : ${showType(type)}`);
+const check = (env: LTEnv, term: Term, type: Type, eff: Type): void => {
+  log(() => `check ${showTerm(term)} : ${showType(type)} ; ${showType(eff)}`);
   if (type.tag === 'TForall') {
     const m = contextMark();
     contextAdd(ETVar(type.name, type.kind || kType));
-    check(env, term, type.type);
+    check(env, term, type.type, eff);
     contextDrop(m);
     return;
   }
   if (term.tag === 'Abs' && isTFun(type)) {
     const m = contextMark();
-    check(extend(env, term.name, tfunL(type)), term.body, tfunR(type));
+    check(extend(env, term.name, tfunL(type)), term.body, tfunR(type), tfunE(type));
     contextDrop(m);
     return;
   }
   if (term.tag === 'Let') {
     const v = synth(env, term.val);
-    return check(extend(env, term.name, v), term.body, type);
+    unify(v.eff, eff);
+    check(extend(env, term.name, v.type), term.body, type, eff);
   }
   const ty = synth(env, term);
-  subsume(ty, type)
+  subsume(ty.type, type)
+  unify(ty.eff, eff);
 };
 
-const synthapp = (env: LTEnv, type: Type, term: Term): Type => {
+const synthapp = (env: LTEnv, type: Type, term: Term): TypeEff => {
   log(() => `synthapp ${showType(type)} @ ${showTerm(term)}`);
   if (type.tag === 'TForall') {
     const tm = freshTMeta(type.kind || kType, type.name);
@@ -123,20 +148,25 @@ const synthapp = (env: LTEnv, type: Type, term: Term): Type => {
     return synthapp(env, openTForall(tm, type), term);
   }
   if (isTFun(type)) {
-    check(env, term, tfunL(type));
-    return tfunR(type);
+    const eff = flattenTEffExtend(tfunE(type));
+    const rest = prune(eff.rest) === tEffEmpty ? freshEff() : eff.rest;
+    const neff = teffFrom(eff.es.concat([rest]));
+    const e = freshEff();
+    check(env, term, tfunL(type), e);
+    unify(e, neff);
+    return TypeEff(tfunR(type), e);
   }
   if (type.tag === 'TMeta') {
     if (type.type) return synthapp(env, type.type, term);
     const i = contextIndexOfTMeta(type);
     if (i < 0) return terr(`undefined tmeta ${showType(type)}`);
     const a = freshTMeta(kType);
-    const e = freshTMeta(kEffectRow);
+    const e = freshEff();
     const b = freshTMeta(kType);
     contextReplace3(i, a, e, b);
     type.type = TFun(a, e, b);
-    check(env, term, a);
-    return b;
+    check(env, term, a, e);
+    return TypeEff(b, e);
   }
   return terr(`cannot synthapp ${showType(type)} @ ${showTerm(term)}`);
 };
@@ -220,7 +250,6 @@ export const inferDefs = (ds: Def[]): void => {
         tvars[d.name].concat([[e, kEffectRow], [r, kType]]),
         tfun(tconapp, ftype),
       ));
-      console.log(showType(type));
       globalenv.vars[cname] = { type };
       contextDrop(m);
     } else if (d.tag === 'DEffect') {
@@ -289,16 +318,19 @@ export const inferDefs = (ds: Def[]): void => {
       // check type
       const oldtype = globalenv.vars[d.name].type;
       const m = contextMark();
-      check(Nil, d.val, oldtype);
+      check(Nil, d.val, oldtype, tEffEmpty);
       contextDrop(m);
+      log(() => `defined ${d.name} : ${showType(prune(oldtype))}`);
     } else {
       // synth type
       const m = contextMark();
       const mv = freshTMeta(kType);
       contextAdd(mv);
       const ty = synth(extend(Nil, d.name, mv), d.val);
-      const type = prune(generalize(m, ty));
+      unify(ty.eff, tEffEmpty);
+      const type = prune(generalize(m, ty.type));
       globalenv.vars[d.name] = { type };
+      log(() => `defined ${d.name} : ${showType(type)}`);
     }
   }
 };
