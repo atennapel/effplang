@@ -1,9 +1,29 @@
 import { terr } from './util';
-import { showType, Type, TMeta, isTFun, freshTMeta, openTForall, tfunR, tfunL, hasTMeta, TFun, TApp } from './types';
+import { showType, Type, TMeta, isTFun, freshTMeta, openTForall, tfunR, tfunL, hasTMeta, TFun, TApp, isTEffExtend, teffEff, flattenTApp, TCon, TEffExtend, teffRest } from './types';
 import { contextRemove, showContext, contextIndexOfTVar, contextAdd, contextMark, ETVar, contextDrop, contextIndexOfTMeta, contextReplace2 } from './context';
 import { log } from './config';
-import { kType, eqKind, showKind } from './kinds';
+import { kType, eqKind, showKind, kEffectRow } from './kinds';
 import { kindOf } from './kindinference';
+
+const rewriteTEff = (c: TCon, full: Type, other: Type): TEffExtend => {
+  if (isTEffExtend(other)) {
+    const othereff = teffEff(other);
+    const effcon = flattenTApp(othereff)[0];
+    if (effcon.tag !== 'TCon')
+      return terr(`effect should be a type constructor but got ${showType(effcon)}`);
+    if (c === effcon || c.name === effcon.name) return other;
+    const tail = rewriteTEff(c, full, teffRest(other));
+    return TEffExtend(teffEff(tail), TEffExtend(teffEff(other), teffRest(tail)));
+  }
+  if (other.tag === 'TMeta') {
+    if (other.type) return rewriteTEff(c, full, other.type);
+    const tv = freshTMeta(kEffectRow, 'e');
+    if (hasTMeta(other, full))
+      return terr(`occurs check failed in effect ${showType(other)} in ${showType(full)}`);
+    return other.type = TEffExtend(full, tv);
+  }
+  return terr(`cannot find ${showType(c)} in row ${showType(other)}`);
+};
 
 const solve = (x: TMeta, i: number, t: Type): void => {
   log(() => `solve ${showType(x)} ${i} ${showType(t)} | ${showContext()}`);
@@ -59,6 +79,16 @@ export const subsume = (t1: Type, t2: Type): void => {
   if (isTFun(t1) && isTFun(t2)) {
     subsume(tfunL(t2), tfunL(t1));
     subsume(tfunR(t1), tfunR(t2));
+    return;
+  }
+  if (isTEffExtend(t1) && isTEffExtend(t2)) {
+    const eff = teffEff(t1);
+    const effcon = flattenTApp(eff)[0];
+    if (effcon.tag !== 'TCon')
+      return terr(`effect should be a type constructor but got ${showType(effcon)}`);
+    const rewr = rewriteTEff(effcon, eff, t2);
+    unify(eff, teffEff(rewr));
+    unify(teffRest(t1), teffRest(t2));
     return;
   }
   if (t1.tag === 'TApp' && t2.tag === 'TApp') {

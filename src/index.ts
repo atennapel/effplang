@@ -6,7 +6,7 @@ import { infer, inferDefs } from './inference';
 import { globalenv } from './env';
 import { DLet, Def, showDefs, DType, DEffect } from './definitions';
 
-config.debug = true;
+config.debug = false;
 config.showKinds = true;
 
 const v = Var;

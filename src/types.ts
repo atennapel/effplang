@@ -107,6 +107,37 @@ export const flattenTFun = (t: Type): Type[] => {
   return r;
 };
 
+export const tEffEmpty = TCon('<>');
+export interface TEffExtend {
+  readonly tag: 'TApp';
+  readonly left: {
+    readonly tag: 'TApp';
+    readonly left: TCon;
+    readonly right: Type;
+  }
+  readonly right: Type;
+}
+export const tEffExtend = TCon('|');
+export const TEffExtend = (left: Type, right: Type): TEffExtend =>
+  TApp(TApp(tEffExtend, left), right) as TEffExtend;
+export const isTEffExtend = (ty: Type): ty is TEffExtend =>
+  ty.tag === 'TApp' && ty.left.tag === 'TApp' &&
+    ty.left.left === tEffExtend;
+export const teffEff = (ty: TEffExtend): Type => ty.left.right;
+export const teffRest = (ty: TEffExtend): Type => ty.right;
+export const teffFrom = (ts: Type[]): Type =>
+  ts.reduceRight((x, y) => TEffExtend(y, x));
+export const teff = (...ts: Type[]): Type => teffFrom(ts);
+export const flattenTEffExtend = (t: Type): { es: Type[], rest: Type } => {
+  let c = t;
+  const es: Type[] = [];
+  while (isTEffExtend(c)) {
+    es.push(c.left.right);
+    c = c.right;
+  }
+  return { es, rest: c };
+};
+
 const showTypeW = (b: boolean, t: Type): string =>
   b ? `(${showType(t)})` : showType(t);
 export const showType = (t: Type): string => {
@@ -118,6 +149,10 @@ export const showType = (t: Type): string => {
     return flattenTFun(t)
       .map(t => showTypeW(isTFun(t) || t.tag === 'TForall', t))
       .join(' -> ');
+  if (isTEffExtend(t)) {
+    const f = flattenTEffExtend(t);
+    return `<${f.es.map(showType).join(', ')}${f.rest === tEffEmpty ? '' : ` | ${showType(f.rest)}`}>`;
+  }
   if (t.tag === 'TApp')
     return flattenTApp(t)
       .map(t => showTypeW(t.tag === 'TApp' || t.tag === 'TForall', t))
