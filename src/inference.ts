@@ -1,11 +1,11 @@
 import { LTEnv, globalenv } from './env';
 import { Term, showTerm } from './terms';
-import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar, tbinders, TCon, tfunFrom, tappFrom, tfun } from './types';
-import { contextMark, contextDrop, contextAdd, ETVar, contextIndexOfTMeta, contextReplace2, contextAdd2, EMarker, showElem, showContext, resetContext } from './context';
+import { Type, prune, showType, isTFun, tfunL, tfunR, freshTMeta, openTForall, TFun, tforall, tmetas, TMeta, TVar, tbinders, TCon, tfunFrom, tappFrom, tfun, TEffExtend, tEffEmpty } from './types';
+import { contextMark, contextDrop, contextAdd, ETVar, contextIndexOfTMeta, contextReplace2, contextAdd2, EMarker, showElem, showContext, resetContext, contextReplace3, contextAdd3 } from './context';
 import { Nil, extend, lookup } from './list';
 import { log } from './config';
 import { terr } from './util';
-import { kType, Kind, eqKind, showKind, KMeta, freshKMeta, kfunFrom, kEffect } from './kinds';
+import { kType, Kind, eqKind, showKind, KMeta, freshKMeta, kfunFrom, kEffect, kEffectRow } from './kinds';
 import { Name, resetId, freshId } from './names';
 import { subsume } from './subsumption';
 import { inferKind, unifyKinds, pruneKindInType, pruneKindDefault } from './kindinference';
@@ -82,11 +82,12 @@ const synth = (env: LTEnv, term: Term): Type => {
   }
   if (term.tag === 'Abs') {
     const a = freshTMeta(kType);
+    const e = freshTMeta(kEffectRow);
     const b = freshTMeta(kType);
     const m = contextMark();
-    contextAdd2(a, b);
+    contextAdd3(a, e, b);
     check(extend(env, term.name, a), term.body, b);
-    return generalize(m, TFun(a, b));
+    return generalize(m, TFun(a, e, b));
   }
   return terr(`cannot synth ${showTerm(term)}`);
 };
@@ -130,9 +131,10 @@ const synthapp = (env: LTEnv, type: Type, term: Term): Type => {
     const i = contextIndexOfTMeta(type);
     if (i < 0) return terr(`undefined tmeta ${showType(type)}`);
     const a = freshTMeta(kType);
+    const e = freshTMeta(kEffectRow);
     const b = freshTMeta(kType);
-    contextReplace2(i, a, b);
-    type.type = TFun(a, b);
+    contextReplace3(i, a, e, b);
+    type.type = TFun(a, e, b);
     check(env, term, a);
     return b;
   }
@@ -199,14 +201,26 @@ export const inferDefs = (ds: Def[]): void => {
       globalenv.types[d.name].kind = pruneKindDefault(globalenv.types[d.name].kind);
       for (let [c, _] of d.cons)
         globalenv.vars[c].type = pruneKindInType(globalenv.vars[c].type);
-      const r = pickName(tvars[d.name].map(x => x[0]), 'r');
+      const ns = tvars[d.name].map(x => x[0])
+      const e = pickName(ns, 'e');
+      const te = TVar(e);
+      const r = pickName(ns, 'r');
       const tr = TVar(r);
+      let first = true;
+      const ftype = d.cons.reduceRight((a, [_, ts]) => {
+        let cs: Type;
+        if (ts.length === 0) cs = TFun(TCon('Unit'), te, tr);
+        else {
+          let first2 = true;
+          cs = ts.reduceRight((a, t) => first2 ? (first2 = false, TFun(t, te, a)) : tfun(t, a), tr as Type);
+        }
+        return first ? (first = false, TFun(cs, te, a)) : tfun(cs, a);
+      }, tr as Type);
       const type = pruneKindInType(tforall(
-        tvars[d.name].concat([[r, kType]]),
-        tfunFrom([tconapp].concat(d.cons.map(([_, ts]) =>
-          ts.length === 0 ? tfun(TCon('Unit'), tr) : tfunFrom(ts.concat(tr))
-        ), tr)),
+        tvars[d.name].concat([[e, kEffectRow], [r, kType]]),
+        tfun(tconapp, ftype),
       ));
+      console.log(showType(type));
       globalenv.vars[cname] = { type };
       contextDrop(m);
     } else if (d.tag === 'DEffect') {
@@ -225,7 +239,7 @@ export const inferDefs = (ds: Def[]): void => {
         const [k2, ty2] = inferKind(t2);
         unifyKinds(k2, kType);
         globalenv.vars[opname] = {
-          type: tforall(tvars[d.name], tfun(ty1, ty2)),
+          type: tforall(tvars[d.name], TFun(ty1, TEffExtend(tconapp, tEffEmpty), ty2)),
         };
       }
       globalenv.types[d.name].kind = pruneKindDefault(globalenv.types[d.name].kind);
@@ -233,15 +247,22 @@ export const inferDefs = (ds: Def[]): void => {
         const opname = `#${c}`;
         globalenv.vars[opname].type = pruneKindInType(globalenv.vars[opname].type);
       }
-      const a = pickName(tvars[d.name].map(x => x[0]), 'a');
+      const ns = tvars[d.name].map(x => x[0]);
+      const a = pickName(ns, 'a');
       const ta = TVar(a);
-      const b = pickName(tvars[d.name].map(x => x[0]), 'b');
+      const e = pickName(ns, 'e');
+      const te = TVar(e);
+      const b = pickName(ns, 'b');
       const tb = TVar(b);
+      const ftype = [TFun(TCon('Unit'), TEffExtend(tconapp, te), ta) as Type].concat(d.ops.map(([_, t1, t2]) =>
+        tfun(t1, TFun(TFun(t2, te, tb), te, tb))
+      ), TFun(ta, te, tb));
+      let first = true;
+      const innertype = ftype.reduceRight((a, t) =>
+        first ? (first = false, TFun(t, te, a)) : tfun(t, a), tb as Type);
       const type = pruneKindInType(tforall(
-        tvars[d.name].concat([[a, kType], [b, kType]]),
-        tfunFrom([tfun(TCon('Unit'), ta)].concat(d.ops.map(([_, t1, t2]) =>
-          tfun(t1, tfun(t2, tb), tb)
-        ), tfun(ta, tb), tb)),
+        tvars[d.name].concat([[e, kEffectRow], [a, kType], [b, kType]]),
+        innertype,
       ));
       globalenv.vars[hname] = { type };
       contextDrop(m);

@@ -80,28 +80,33 @@ export interface TFun {
   readonly tag: 'TApp';
   readonly left: {
     readonly tag: 'TApp';
-    readonly left: TCon;
+    readonly left: {
+      readonly tag: 'TApp'
+      readonly left: TCon;
+      readonly right: Type;
+    }
     readonly right: Type;
   }
   readonly right: Type;
 }
 export const tFun = TCon('->');
-export const TFun = (left: Type, right: Type): TFun =>
-  TApp(TApp(tFun, left), right) as TFun;
+export const TFun = (left: Type, eff: Type, right: Type): TFun =>
+  TApp(TApp(TApp(tFun, left), eff), right) as TFun;
 export const isTFun = (ty: Type): ty is TFun =>
   ty.tag === 'TApp' && ty.left.tag === 'TApp' &&
-    ty.left.left === tFun;
-export const tfunL = (ty: TFun): Type => ty.left.right;
+    ty.left.left.tag === 'TApp' && ty.left.left.left === tFun;
+export const tfunL = (ty: TFun): Type => ty.left.left.right;
+export const tfunE = (ty: TFun): Type => ty.left.right;
 export const tfunR = (ty: TFun): Type => ty.right;
 export const tfunFrom = (ts: Type[]): Type =>
-  ts.reduceRight((x, y) => TFun(y, x));
+  ts.reduceRight((x, y) => TFun(y, tEffEmpty, x));
 export const tfun = (...ts: Type[]): Type => tfunFrom(ts);
 export const flattenTFun = (t: Type): Type[] => {
   let c = t;
   const r: Type[] = [];
   while (isTFun(c)) {
-    r.push(c.left.right);
-    c = c.right;
+    r.push(tfunL(c));
+    c = tfunR(c);
   }
   r.push(c);
   return r;
@@ -145,10 +150,13 @@ export const showType = (t: Type): string => {
   if (t.tag === 'TCon') return `${t.name}`;
   if (t.tag === 'TMeta')
     return `?${t.name ? `${t.name}\$` : ''}${t.id}`;
-  if (isTFun(t))
-    return flattenTFun(t)
-      .map(t => showTypeW(isTFun(t) || t.tag === 'TForall', t))
-      .join(' -> ');
+  if (isTFun(t)) {
+    const l = tfunL(t);
+    const e = tfunE(t);
+    return `${showTypeW(isTFun(l) || l.tag === 'TForall', l)} -> ${e === tEffEmpty ?
+        '' : e.tag === 'TVar' || e.tag === 'TMeta' ?
+        `<${showType(e)}> ` : `${showType(e)} `}${showType(tfunR(t))}`;
+  }
   if (isTEffExtend(t)) {
     const f = flattenTEffExtend(t);
     return `<${f.es.map(showType).join(', ')}${f.rest === tEffEmpty ? '' : ` | ${showType(f.rest)}`}>`;

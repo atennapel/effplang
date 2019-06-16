@@ -28,7 +28,7 @@ export const initialGTEnv = (): GTEnv => ({
     EffectRow: { con: kEffectRow },
   },
   types: {
-    '->': { con: tFun, kind: kfun(kType, kType, kType) },
+    '->': { con: tFun, kind: kfun(kType, kEffectRow, kType, kType) },
     '<>': { con: tEffEmpty, kind: kEffectRow },
     '|': { con: tEffExtend, kind: kfun(kEffect, kEffectRow, kEffectRow) },
   },

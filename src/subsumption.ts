@@ -1,6 +1,6 @@
 import { terr } from './util';
-import { showType, Type, TMeta, isTFun, freshTMeta, openTForall, tfunR, tfunL, hasTMeta, TFun, TApp, isTEffExtend, teffEff, flattenTApp, TCon, TEffExtend, teffRest } from './types';
-import { contextRemove, showContext, contextIndexOfTVar, contextAdd, contextMark, ETVar, contextDrop, contextIndexOfTMeta, contextReplace2 } from './context';
+import { showType, Type, TMeta, isTFun, freshTMeta, openTForall, tfunR, tfunL, hasTMeta, TFun, TApp, isTEffExtend, teffEff, flattenTApp, TCon, TEffExtend, teffRest, tfunE } from './types';
+import { contextRemove, showContext, contextIndexOfTVar, contextAdd, contextMark, ETVar, contextDrop, contextIndexOfTMeta, contextReplace2, contextReplace3 } from './context';
 import { log } from './config';
 import { kType, eqKind, showKind, kEffectRow } from './kinds';
 import { kindOf } from './kindinference';
@@ -53,14 +53,24 @@ const subsumeTMeta = (x: TMeta, t: Type, contra: boolean): void => {
       return terr(`tvar out of scope ${showType(x)} := ${showType(t)}`);
     return solve(x, i, t);
   }
+  if (isTFun(t)) {
+    if (hasTMeta(x, t))
+      return terr(`occurs check fail ${showType(x)} := ${showType(t)}`);
+    const a = freshTMeta(kType);
+    const e = freshTMeta(kEffectRow);
+    const b = freshTMeta(kType);
+    contextReplace3(i, a, e, b);
+    const ty = TFun(a, e, b);
+    x.type = ty;
+    return contra ? subsume(t, ty) : subsume(ty, t);
+  }
   if (t.tag === 'TApp') {
     if (hasTMeta(x, t))
       return terr(`occurs check fail ${showType(x)} := ${showType(t)}`);
-    const fun = isTFun(t);
-    const a = freshTMeta(fun ? kType : kindOf(t.left));
-    const b = freshTMeta(fun ? kType : kindOf(t.right));
+    const a = freshTMeta(kindOf(t.left));
+    const b = freshTMeta(kindOf(t.right));
     contextReplace2(i, a, b);
-    const ty = fun ? TFun(a, b) : TApp(a, b);
+    const ty = TApp(a, b);
     x.type = ty;
     return contra ? subsume(t, ty) : subsume(ty, t);
   }
@@ -78,6 +88,7 @@ export const subsume = (t1: Type, t2: Type): void => {
   if (t1.tag === 'TVar' && t2.tag === 'TVar' && (t1 === t2 || t1.name === t2.name)) return;
   if (isTFun(t1) && isTFun(t2)) {
     subsume(tfunL(t2), tfunL(t1));
+    unify(tfunE(t1), tfunE(t2));
     subsume(tfunR(t1), tfunR(t2));
     return;
   }

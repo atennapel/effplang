@@ -37,6 +37,7 @@ const ds: Def[] = [
   DLet('single', null, abs(['x'], app(v('Cons'), v('x'), v('Nil')))),
   DLet('test', null, app(v('Fix'), v('Nil'))),
   DLet('test2', null, Let('id', abs(['x'], v('x')), app(v('Pair'), app(v('id'), v('True')), app(v('id'), v('Unit'))))),
+  DLet('state', null, abs(['c'], app(v('!State'), v('c'), abs(['_', 'k', 's'], app(v('k'), v('s'), v('s'))), abs(['s', 'k', '_'], app(v('k'), v('Unit'), v('s'))), abs(['x', 's'], v('x'))))),
 ];
 console.log(showDefs(ds));
 inferDefs(ds);
