@@ -1,5 +1,5 @@
 import { Kind, KCon, kType, kfun, kEffect, kEffectRow } from './kinds';
-import { Type, TCon, tFun } from './types';
+import { Type, TCon, tFun, tEffEmpty, tEffExtend } from './types';
 import { List } from './list';
 import { Name } from './names';
 
@@ -29,6 +29,8 @@ export const initialGTEnv = (): GTEnv => ({
   },
   types: {
     '->': { con: tFun, kind: kfun(kType, kType, kType) },
+    '<>': { con: tEffEmpty, kind: kEffectRow },
+    '|': { con: tEffExtend, kind: kfun(kEffect, kEffectRow, kEffectRow) },
   },
   vars: {},
 });
