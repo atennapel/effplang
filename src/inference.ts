@@ -6,7 +6,7 @@ import { Nil, extend, lookup } from './list';
 import { log } from './config';
 import { terr } from './util';
 import { kType, Kind, eqKind, showKind, KMeta, freshKMeta, kfunFrom } from './kinds';
-import { Name, resetId } from './names';
+import { Name, resetId, freshId } from './names';
 import { subsume } from './subsumption';
 import { inferKind, unifyKinds, pruneKindInType, pruneKindDefault } from './kindinference';
 import { Def, showDefs } from './definitions';
@@ -131,6 +131,16 @@ const synthapp = (env: LTEnv, type: Type, term: Term): Type => {
   return terr(`cannot synthapp ${showType(type)} @ ${showTerm(term)}`);
 };
 
+const pickName = (xs: string[], x: string): string => {
+  if (xs.indexOf(x) < 0) return x;
+  let n = 0;
+  while (true) {
+    const xn = `${x}${n}`;
+    if (xs.indexOf(xn) < 0) return xn;
+    n++;
+  }
+};
+
 export const inferDefs = (ds: Def[]): void => {
   log(() => `inferDefs ${showDefs(ds)}`);
   resetId();
@@ -181,8 +191,7 @@ export const inferDefs = (ds: Def[]): void => {
     globalenv.types[d.name].kind = pruneKindDefault(globalenv.types[d.name].kind);
     for (let [c, _] of d.cons)
       globalenv.vars[c].type = pruneKindInType(globalenv.vars[c].type);
-    // TODO: carefully choose 'r'
-    const r = '_r';
+    const r = pickName(tvars[d.name].map(x => x[0]), 'r');
     const tr = TVar(r);
     const type = pruneKindInType(tforall(
       tvars[d.name].concat([[r, kType]]),
