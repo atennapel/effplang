@@ -44,6 +44,7 @@ export const flattenKFun = (k: Kind): Kind[] => {
 };
 
 export const kType = KCon('Type');
+export const kEffect = KCon('Effect');
 
 export const showKind = (k: Kind): string => {
   if (k.tag === 'KCon') return `${k.name}`;
