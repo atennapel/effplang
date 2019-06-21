@@ -83,8 +83,10 @@ const subsumeTMeta = (x: TMeta, t: Type, contra: boolean): void => {
   return terr(`subsumeTMeta failed ${contra ? `${showType(t)} =: ${showType(x)}` : `${showType(x)} := ${showType(t)}`}`);
 };
 
-export const subsume = (t1: Type, t2: Type): void => {
-  log(() => `subsume ${showType(prune(t1))} <: ${showType(prune(t2))} | ${showContext()}`);
+export const subsume = (_t1: Type, _t2: Type): void => {
+  const t1 = prune(_t1);
+  const t2 = prune(_t2);
+  log(() => `subsume ${showType(t1)} <: ${showType(t2)} | ${showContext()}`);
   if (t1 === t2) return;
   const ka = kindOf(t1);
   const kb = kindOf(t2);
