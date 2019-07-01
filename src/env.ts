@@ -1,37 +1,46 @@
-import { List } from './list';
-import { Name } from './util';
-import { Type } from './types';
-import { Kind, kfun, kType, kEffs, kEff } from './kinds';
+import { VarName } from './terms';
+import { Type, TMeta, tmetas } from './types';
 
-export interface LTEnvEntry { name: Name, type: Type };
-export const LTEnvEntry = (name: Name, type: Type) => ({ name, type });
-export type LTEnv = List<LTEnvEntry>;
-export const lookupLTEnv = (name: Name, env: LTEnv): Type | null => {
-  let l = env;
-  while (l.tag === 'Cons') {
-    const c = l.head;
-    if (c.name === name) return c.type;
-    l = l.tail;
+export type List<T> = Nil | Cons<T>;
+
+export interface Nil { readonly tag: 'Nil' }
+export const Nil: Nil = { tag: 'Nil' };
+
+export interface Cons<T> {
+  readonly tag: 'Cons';
+  readonly head: T;
+  readonly tail: List<T>;
+}
+export const Cons = <T>(head: T, tail: List<T>): Cons<T> =>
+  ({ tag: 'Cons', head, tail });
+
+export const listFrom = <T>(a: T[]) =>
+  a.reduceRight((x, y) => Cons(y, x), Nil as List<T>);
+export const list = <T>(...a: T[]) => listFrom(a);
+
+export type Env = List<[VarName, Type]>;
+
+export const extend = (k: VarName, v: Type, l: Env): Env =>
+  Cons([k, v], l);
+export const lookup = (k: VarName, l: Env): Type | null => {
+  let c = l;
+  while (c.tag === 'Cons') {
+    const [k2, v] = c.head;
+    if (k === k2) return v;
+    c = c.tail;
   }
   return null;
 };
 
-export interface TEnv {
-  tcons: { [key: string]: Kind };
-  vars: { [key: string]: Type };
+export const each = (l: Env, f: (k: VarName, v: Type) => void): void => {
+  let c = l;
+  while (c.tag === 'Cons') {
+    f(c.head[0], c.head[1]);
+    c = c.tail;
+  }
 };
-export const lookupTCon = (name: Name, genv: TEnv): Kind | null =>
-  genv.tcons[name] || null;
-export const lookupTEnv = (name: Name, genv: TEnv): Type | null =>
-  genv.vars[name] || null;
 
-export const initialEnv = (): TEnv => ({
-  tcons: {
-    '->': kfun(kType, kEffs, kType, kType),
-    Float: kType,
-    String: kType,
-    '<>': kEffs,
-    '|': kfun(kEff, kEffs, kEffs),
-  },
-  vars: {},
-});
+export const tmetasEnv = (env: Env, tms: TMeta[] = []): TMeta[] => {
+  each(env, (_, v) => tmetas(v, [], tms));
+  return tms;
+};

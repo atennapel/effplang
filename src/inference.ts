@@ -1,153 +1,125 @@
-import { LTEnv, LTEnvEntry, TEnv, lookupLTEnv, lookupTEnv } from './env';
-import { Type, prune, annotAny, Annot, isSigma, TFun, isMono, isTFun, tString, tFloat, showType, freshTMeta } from './types';
-import { Name, resetId, terr, impossible, zip } from './util';
-import { Cons, Nil } from './list';
-import { Term, Abs, flattenApp, showTerm, isAnnot } from './terms';
-import { generalizeAndClose, instantiate, subsume, instantiateAnnot, unifyTFuns, unify, openEffs } from './unification';
+import { Env, Nil, tmetasEnv, each, lookup, extend } from './env';
+import { Type, resetTMetaId, resetTSkolId, tmetas, TVar, freshTMetaId, tforall, prune, TSkol, hasAnyTSkol, showType, freshTMeta, isMono, TFun, isTMeta, isTFun, tfunL, tfunR } from './types';
+import { Term, showTerm, flattenApp } from './terms';
+import { terr } from './util';
 import { log } from './config';
-import { kEffs } from './kinds';
+import { inst, skol, matchfun, subsume, unify } from './unification';
 
-export interface TypeEff { type: Type, effs: Type }
-const TypeEff = (type: Type, effs: Type): TypeEff => ({ type, effs });
-const pruneTypeEff = (te: TypeEff): TypeEff =>
-  TypeEff(prune(te.type), prune(te.effs));
-export const showTypeEff = (t: TypeEff): string =>
-  `${showType(t.type)} ; ${showType(t.effs)}`;
-
-type Expected = 'Inst' | 'Gen';
-const Inst = 'Inst';
-const Gen = 'Gen';
-const maybeInst = (ex: Expected, ty: Type) =>
-  ex === Inst ? instantiate(ty) : ty;
-const maybeGen = (ex: Expected, genv: TEnv, env: LTEnv, ty: Type) =>
-  ex === Gen ? generalizeAndClose(genv, env, ty) : ty;
-const maybeInstOrGen = (ex: Expected, genv: TEnv, env: LTEnv, ty: Type) =>
-  ex === Gen ? generalizeAndClose(genv, env, ty) : instantiate(ty);
-
-export const infer = (genv: TEnv, term: Term): TypeEff => {
-  resetId();
-  const ty = synth(null, Gen, genv, Nil, term);
-  return TypeEff(
-    generalizeAndClose(genv, Nil, prune(ty.type)),
-    prune(ty.effs),
-  );
+const generalize = (env: Env, t: Type): Type => {
+  const tmsenv = tmetasEnv(env);
+  const tms = tmetas(t, tmsenv);
+  const l = tms.length;
+  const tvs = Array(l);
+  for (let i = 0; i < l; i++) {
+    const c = tms[i];
+    // TODO: fix naming
+    const id = freshTMetaId();
+    c.type = TVar(`${id}`);
+    tvs[i] = id;
+  }
+  return tforall(tvs, prune(t));
 };
 
-const extend = (n: Name, t: Type, e: LTEnv) =>
-  Cons(LTEnvEntry(n, t), e);
+const escapeCheckEnv = (sks: TSkol[], env: Env): void => {
+  each(env, (k, v) => {
+    if (hasAnyTSkol(sks, v))
+      terr(`TSkol escaped in ${showType(v)} in ${k}`);
+  });
+};
 
-const synth = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, term: Term): TypeEff => {
+export const infer = (t: Term, env: Env = Nil): Type => {
+  resetTMetaId();
+  resetTSkolId();
+  return synth(env, t);
+};
+
+const synth = (env: Env, term: Term): Type => {
   log(() => `synth ${showTerm(term)}`);
   if (term.tag === 'Var') {
-    const x = term.name;
-    const ty = lookupLTEnv(x, env) || lookupTEnv(x, genv);
-    if (!ty) return terr(`undefined var ${x}`);
-    return TypeEff(openEffs(maybeInst(ex, ty)), freshTMeta(kEffs, 'e'));
-  }
-  if (term.tag === 'Let') {
-    const ty = synth(null, Gen, genv, env, term.val);
-    const res = synth(prop, ex, genv, extend(term.name, ty.type, env), term.body);
-    unify(genv, ty.effs, res.effs);
-    return pruneTypeEff(res);
-  }
-  if (term.tag === 'Abs') {
-    const { left: proparg, effs: propeffs, right: propres, ex: exres } = propFun(prop);
-    if (term.annot === annotAny) {
-      term = Abs(term.name, proparg ? Annot([], proparg) : annotAny, term.body);
-    }
-    const { tmetas: some, type: ty1 } = instantiateAnnot(genv, term.annot);
-    const ty2 = synth(propres, exres, genv, extend(term.name, ty1, env), term.body);
-    for (let i = 0, l = some.length; i < l; i++) {
-      if (!isMono(prune(some[i])))
-        return terr(`unannotated parameters used polymorphically in ${showTerm(term)}`);
-    }
-    if (propeffs) unify(genv, propeffs, ty2.effs);
-    const fty = maybeGen(ex, genv, env, TFun(ty1, ty2.effs, ty2.type));
-    return TypeEff(fty, freshTMeta(kEffs, 'e'));
+    const t = lookup(term.name, env);
+    if (!t) return terr(`undefined var ${term.name}`);
+    return t;
   }
   if (term.tag === 'Ann') {
-    const { type } = instantiateAnnot(genv, term.annot);
-    const ty = synth(
-      type,
-      isSigma(type) ? Gen : Inst,
-      genv,
-      env,
-      term.term,
-    );
-    subsume(genv, type, ty.type);
-    return pruneTypeEff(TypeEff(type, ty.effs));
+    check(env, term.term, term.type);
+    return term.type;
   }
   if (term.tag === 'App') {
-    const { fn, args } = flattenApp(term);
-    const fty = synth(null, Inst, genv, env, fn);
-    return inferApp(prop, ex, genv, env, fty.type, args, fty.effs);
+    const f = flattenApp(term);
+    const ty = synth(env, f.fn);
+    const res = synthapp(env, ty, f.as);
+    return generalize(env, res);
   }
-  if (term.tag === 'Lit')
-    return TypeEff(
-      typeof term.val === 'string' ? tString : tFloat,
-      freshTMeta(kEffs, 'e'), 
-    );
-  return impossible(`synth`);
-};
-
-const inferApp = (prop: Type | null, ex: Expected, genv: TEnv, env: LTEnv, fty: Type, args: Term[], effsout: Type): TypeEff => {
-  log(() => `inferApp ${showType(fty)} with ${args.map(showTerm).join(' ')}`);
-  const { args: tpars, effs, res } = unifyTFuns(args.length, fty);
-  // log(() => `${tpars.map(showType).join(' ')} ; ${showType(res)}`);
-  propApp(genv, prop, res, tpars.length === args.length);
-  const pargs = zip(tpars, args);
-  for (let i = 0, l = effs.length; i < l; i++)
-    unify(genv, effsout, effs[i]);
-  subsumeInferN(genv, env, pargs, effsout);
-  const argsLeft = args.slice(tpars.length);
-  if (argsLeft.length === 0)
-    return TypeEff(maybeInstOrGen(ex, genv, env, res), effsout);
-  // log(() => `argsLeft: ${argsLeft.map(showTerm).join(' ')}`);
-  return inferApp(prop, ex, genv, env, res, argsLeft, effsout);
-};
-
-const subsumeInferN = (genv: TEnv, env: LTEnv, tps: [Type, Term][], effs: Type): void => {
-  if (tps.length === 0) return;
-  const [tpar_, arg] = pickArg(tps);
-  const tpar = prune(tpar_);
-  const targ = synth(tpar, isSigma(tpar) ? Gen : Inst, genv, env, arg);
-  if (isAnnot(arg)) unify(genv, tpar, targ.type);
-  else subsume(genv, tpar, targ.type);
-  unify(genv, effs, targ.effs);
-  subsumeInferN(genv, env, tps, effs);
-};
-
-const propApp = (genv: TEnv, prop: Type | null, ty: Type, fapp: boolean): void => {
-  const isuni = ty.tag === 'TMeta' && !ty.type;
-  if (prop && fapp && !isuni) {
-    const rho = instantiate(prop);
-    subsume(genv, rho, ty);
+  if (term.tag === 'Abs') {
+    const a = term.type || freshTMeta();
+    const ty = synth(extend(term.name, a, env), term.body);
+    if (a.tag === 'TMeta' && a.type && !isMono(a.type))
+      return terr(`poly type infered for abstraction argument ${showTerm(term)}: ${showType(a.type)}`);
+    return generalize(env, TFun(a, inst(ty)));
   }
+  return terr(`cannot synth ${showTerm(term)}`);
 };
-const propFun = (prop: Type | null): { left: Type | null, effs: Type | null, right: Type | null, ex: Expected } => {
-  if (!prop) return { left: null, effs: null, right: null, ex: Inst };
-  const rho = prune(instantiate(prop));
-  if (isTFun(rho))
-    return { left: rho.left.left.right, effs: rho.left.right, right: rho.right, ex: isSigma(rho.right) ? Gen : Inst };
-  return { left: null, effs: null, right: null, ex: Inst };
+const check = (env: Env, term: Term, type: Type): void => {
+  if (log) console.log(`check ${showTerm(term)} : ${showType(type)}`);
+  if (term.tag === 'Abs' && !term.type) {
+    const sks: TSkol[] = [];
+    const itype = skol(type, sks);
+    const m = matchfun(itype);
+    check(extend(term.name, m.left, env), term.body, m.right);
+    if (hasAnyTSkol(sks, type)) return terr(`TSkol escape in ${showTerm(term)} : ${showType(type)}`);
+    escapeCheckEnv(sks, env);
+    return;
+  }
+  if (term.tag === 'App') {
+    const f = flattenApp(term);
+    const ty = synth(env, f.fn);
+    const res = synthapp(env, ty, f.as, type);
+    subsume(res, type);
+    return;
+  }
+  const ty = synth(env, term);
+  subsume(ty, type);
 };
-
-const pickArg = (tps: [Type, Term][]): [Type, Term] => {
-  for (let i = 0, l = tps.length; i < l; i++) {
-    const targ = tps[i];
-    if (isAnnot(targ[1])) {
-      tps.splice(i, 1);
-      return targ;
+const synthapp = (env: Env, type: Type, args: Term[], extype: Type | null = null): Type => {
+  if (log) console.log(`synthapp ${showType(type)} @ [${args.map(showTerm).join(', ')}]${extype ? ` : ${showType(extype)}` : ''}`);
+  if (args.length === 0) return type;
+  const [pars, ret, resargs] = collectArgs(inst(type), args);
+  if (extype && resargs.length === 0)
+    (isTMeta(ret) ? unify : subsume)(ret, extype);
+  while (pars.length > 0) {
+    let found = false;
+    for (let i = 0, l = pars.length; i < l; i++) {
+      const [arg, party] = pars[i];
+      if (!isTMeta(party)) {
+        found = true;
+        pars.splice(i, 1);
+        check(env, arg, party);
+        break;
+      }
+    }
+    if (!found) {
+      const [arg, party] = pars.shift() as [Term, Type];
+      check(env, arg, party);
     }
   }
-  for (let i = 0, l = tps.length; i < l; i++) {
-    const targ = tps[i];
-    if (prune(targ[0]).tag !== 'TMeta') {
-      tps.splice(i, 1);
-      return targ;
-    }
+  return synthapp(env, ret, resargs);
+};
+
+const collectArgs = (f: Type, args: Term[], res: [Term, Type][] = []): [[Term, Type][], Type, Term[]] => {
+  if (args.length === 0) return [res, f, args];
+  if (f.tag === 'TMeta') {
+    if (f.type) return collectArgs(f, args, res);
+    const a = freshTMeta();
+    const b = freshTMeta();
+    f.type = TFun(a, b);
+    const arg = args.shift();
+    res.push([arg as Term, a]);
+    return collectArgs(b, args, res);
   }
-  const ret = tps[0];
-  tps.splice(0, 1);
-  return ret;
+  if (isTFun(f)) {
+    const arg = args.shift();
+    res.push([arg as Term, tfunL(f)]);
+    return collectArgs(tfunR(f), args, res);
+  }
+  return [res, f, args];
 };
