@@ -117,8 +117,8 @@ export const tfun = (...ts: Type[]): Type => tfunFrom(ts);
 export const flattenTFun = (t: Type): Type[] => {
   const ret: Type[] = [];
   while (isTFun(t)) {
-    ret.push(t.left);
-    t = t.right;
+    ret.push(tfunL(t));
+    t = tfunR(t);
   }
   ret.push(t);
   return ret;

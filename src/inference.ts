@@ -13,9 +13,9 @@ const generalize = (env: Env, t: Type): Type => {
   for (let i = 0; i < l; i++) {
     const c = tms[i];
     // TODO: fix naming
-    const id = freshTMetaId();
-    c.type = TVar(`${id}`);
-    tvs[i] = id;
+    const name = `t${freshTMetaId()}`;
+    c.type = TVar(name);
+    tvs[i] = name;
   }
   return tforall(tvs, prune(t));
 };
@@ -60,7 +60,7 @@ const synth = (env: Env, term: Term): Type => {
   return terr(`cannot synth ${showTerm(term)}`);
 };
 const check = (env: Env, term: Term, type: Type): void => {
-  if (log) console.log(`check ${showTerm(term)} : ${showType(type)}`);
+  log(() => `check ${showTerm(term)} : ${showType(type)}`);
   if (term.tag === 'Abs' && !term.type) {
     const sks: TSkol[] = [];
     const itype = skol(type, sks);
@@ -81,7 +81,7 @@ const check = (env: Env, term: Term, type: Type): void => {
   subsume(ty, type);
 };
 const synthapp = (env: Env, type: Type, args: Term[], extype: Type | null = null): Type => {
-  if (log) console.log(`synthapp ${showType(type)} @ [${args.map(showTerm).join(', ')}]${extype ? ` : ${showType(extype)}` : ''}`);
+  log(() => `synthapp ${showType(type)} @ [${args.map(showTerm).join(', ')}]${extype ? ` : ${showType(extype)}` : ''}`);
   if (args.length === 0) return type;
   const [pars, ret, resargs] = collectArgs(inst(type), args);
   if (extype && resargs.length === 0)

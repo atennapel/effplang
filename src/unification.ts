@@ -49,7 +49,7 @@ export const skol = (t: Type, sk: TSkol[] = []): Type => {
   return t;
 };
 export const subsume = (a: Type, b: Type): void => {
-  if (log) console.log(`subsume ${showType(a)} <: ${showType(b)}`);
+  log(() => `subsume ${showType(a)} <: ${showType(b)}`);
   const sks: TSkol[] = [];
   const tb = skol(b, sks);
   const ta = inst(a);
