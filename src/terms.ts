@@ -1,10 +1,11 @@
 import { impossible } from './util';
-import { TConName } from './types';
+import { TConName, Type, showType } from './types';
 
 export type Term
   = Var
   | Abs
   | App
+  | Let
   | Con
   | Decon;
 
@@ -53,6 +54,18 @@ export const flattenApp = (term: Term): Term[] => {
   return ret.reverse();
 };
 
+export interface Let {
+  readonly tag: 'Let';
+  readonly name: VarName;
+  readonly val: Term;
+  readonly body: Term;
+  readonly type: Type | null;
+}
+export const Let = (name: VarName, val: Term, body: Term, type: Type | null = null): Let =>
+  ({ tag: 'Let', name, val, body, type });
+export const lets = (defs: ([VarName, Term] | [VarName, Term, Type | null])[], body: Term): Term =>
+  defs.reduceRight((t, d) => Let(d[0], d[1], t, d[2]), body);
+
 export interface Con {
   readonly tag: 'Con';
   readonly con: TConName;
@@ -79,11 +92,15 @@ export const showTerm = (term: Term): string => {
   }
   if (term.tag === 'App')
     return flattenApp(term)
-      .map(t => showTermParens(t.tag === 'Abs' || t.tag === 'App' || t.tag === 'Con' || t.tag === 'Decon', t))
+      .map(t => showTermParens(t.tag !== 'Var', t))
       .join(' ');
-  if (term.tag === 'Con')
-    return `@${term.con} ${showTerm(term.body)}`;
-  if (term.tag === 'Decon')
-    return `~${term.con} ${showTerm(term.body)}`;
+  if (term.tag === 'Let') {
+    const v = term.val;
+    return `let ${term.name}${term.type ? ` : ${showType(term.type)}` : ''} = ${showTermParens(v.tag === 'Let', v)} in ${showTerm(term.body)}`;
+  }
+  if (term.tag === 'Con' || term.tag === 'Decon') {
+    const b = term.body;
+    return `${term.tag === 'Con' ? '@' : '~'}${term.con} ${showTermParens(b.tag !== 'Var', b)}`;
+  }
   return impossible('showTerm');
 };

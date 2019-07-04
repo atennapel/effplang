@@ -24,6 +24,20 @@ const synth = (env: LTEnv, term: Term): Type => {
     unify(fun, TFun(arg, tv));
     return tv;
   }
+  if (term.tag === 'Let') {
+    const val = synth(env, term.val);
+    if (term.type) {
+      const skols: SkolMap = {};
+      const itype = skolemize(term.type, skols);
+      unify(val, itype, skols);
+      each(env, ({ name, type }) => {
+        if (occursSkol(skols, type))
+          terr(`skolem escape in ${name} : ${showTypePruned(type)} in ${showTerm(term)}`);
+      });
+    }
+    const type = term.type || val;
+    return synth(extend(env, term.name, type), term.body);
+  }
   if (term.tag === 'Con') {
     if (!gtenv.cons[term.con])
       return terr(`undefined constructor ${term.con} in ${showTerm(term)}`);
