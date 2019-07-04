@@ -33,3 +33,10 @@ console.log(showDefs(defs));
 inferDefs(defs);
 console.log(showGTEnv());
 console.log(compileDefs(defs, x => `const ${x}`));
+
+/**
+ * TODO:
+ * - tvar naming in generalization
+ * - recursive definitions without type annotations
+ * - recursive lets without type annotations
+ */

@@ -25,7 +25,8 @@ const synth = (env: LTEnv, term: Term): Type => {
     return tv;
   }
   if (term.tag === 'Let') {
-    const val = synth(env, term.val);
+    const nenv = term.type ? extend(env, term.name, term.type) : env;
+    const val = synth(nenv, term.val);
     if (term.type) {
       const skols: SkolMap = {};
       const itype = skolemize(term.type, skols);
