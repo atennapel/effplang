@@ -1,8 +1,8 @@
-import { Nil } from './list';
-import { Term } from './terms';
-import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta } from './types';
+import { Nil, each } from './list';
+import { Term, showTerm } from './terms';
+import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta, TCon, instantiateTVars, InstMap, tapp1, skolemize, SkolMap, occursSkol, showTypePruned } from './types';
 import { impossible, terr } from './util';
-import { unify } from './unification';
+import { unify, subsume } from './unification';
 import { LTEnv, extend, lookup, gtenv } from './env';
 import { Def } from './definitions';
 
@@ -24,6 +24,32 @@ const synth = (env: LTEnv, term: Term): Type => {
     unify(fun, TFun(arg, tv));
     return tv;
   }
+  if (term.tag === 'Con') {
+    if (!gtenv.cons[term.con])
+      return terr(`undefined constructor ${term.con} in ${showTerm(term)}`);
+    const con = gtenv.cons[term.con];
+    const arg = synth(env, term.body);
+    const tms: InstMap = {};
+    const type = instantiateTVars(con.params, con.type, tms);
+    const skols: SkolMap = {};
+    const itype = skolemize(type, skols);
+    unify(arg, itype, skols);
+    each(env, ({ name, type }) => {
+      if (occursSkol(skols, type))
+        terr(`skolem escape in ${name} : ${showTypePruned(type)} in ${showTerm(term)}`);
+    });
+    return tapp1(con.tcon, con.params.map(v => tms[v]));
+  }
+  if (term.tag === 'Decon') {
+    if (!gtenv.cons[term.con])
+      return terr(`undefined constructor ${term.con} in ${showTerm(term)}`);
+    const con = gtenv.cons[term.con];
+    const arg = synth(env, term.body);
+    const tms: InstMap = {};
+    const type = instantiateTVars(con.params, con.type, tms);
+    unify(arg, tapp1(con.tcon, con.params.map(v => tms[v])));
+    return instantiate(type);
+  }
   return impossible('synth');
 };
 
@@ -33,20 +59,32 @@ export const infer = (term: Term, env: LTEnv = Nil): Type => {
 };
 
 export const inferDefs = (ds: Def[]): void => {
-  resetTMetaId();
-  const added: { [name: string]: TMeta } = {};
   for (const def of ds) {
-    if (gtenv.vars[def.name])
-      return terr(`${def.name} is already defined`);
-    const tv = freshTMeta();
-    added[def.name] = tv;
-    gtenv.vars[def.name] = tv;
+    if (def.tag === 'DType') {
+      if (gtenv.cons[def.name])
+        return terr(`${def.name} is already defined`);
+      gtenv.cons[def.name] = {
+        tcon: TCon(def.name),
+        params: def.params,
+        type: def.type,
+      };
+    }
   }
-  for (const def of ds)
-    unify(added[def.name], synth(Nil, def.term));
-  for (let name in added) {
-    if (added[name]) {
-      gtenv.vars[name] = prune(generalize(gtenv.vars[name]));
+  for (const def of ds) {
+    if (def.tag === 'DLet') {
+      if (gtenv.vars[def.name])
+        return terr(`${def.name} is already defined`);
+      if (def.type)
+        gtenv.vars[def.name] = def.type;
+    }
+  }
+  for (const def of ds) {
+    if (def.tag === 'DLet') {
+      const type = infer(def.term);
+      if (def.type)
+        subsume(type, def.type);
+      else
+        gtenv.vars[def.name] = type;
     }
   }
 };

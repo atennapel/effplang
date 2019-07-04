@@ -1,5 +1,5 @@
 import { VarName } from './terms';
-import { Type, showType } from './types';
+import { Type, showType, TCon, TFunC, TVarName } from './types';
 import { List, Cons } from './list';
 
 export interface Entry { readonly name: VarName, readonly type: Type }
@@ -8,9 +8,17 @@ export const Entry = (name: VarName, type: Type): Entry =>
 export type LTEnv = List<Entry>;
 
 export interface GTEnv {
+  readonly cons: { [name: string]: {
+    tcon: TCon,
+    params: TVarName[],
+    type: Type,
+  } };
   readonly vars: { [name: string]: Type };
 };
-export const gtenv: GTEnv = { vars: {} };
+export const gtenv: GTEnv = {
+  cons: {},
+  vars: {},
+};
 
 export const extend = (env: LTEnv, name: VarName, type: Type): LTEnv =>
   Cons(Entry(name, type), env);

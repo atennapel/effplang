@@ -1,9 +1,12 @@
 import { impossible } from './util';
+import { TConName } from './types';
 
 export type Term
   = Var
   | Abs
-  | App;
+  | App
+  | Con
+  | Decon;
 
 export type VarName = string;
 export interface Var {
@@ -50,6 +53,22 @@ export const flattenApp = (term: Term): Term[] => {
   return ret.reverse();
 };
 
+export interface Con {
+  readonly tag: 'Con';
+  readonly con: TConName;
+  readonly body: Term;
+}
+export const Con = (con: TConName, body: Term): Con =>
+  ({ tag: 'Con', con, body });
+
+export interface Decon {
+  readonly tag: 'Decon';
+  readonly con: TConName;
+  readonly body: Term;
+}
+export const Decon = (con: TConName, body: Term): Decon =>
+  ({ tag: 'Decon', con, body });
+
 const showTermParens = (b: boolean, term: Term) =>
   b ? `(${showTerm(term)})` : showTerm(term);
 export const showTerm = (term: Term): string => {
@@ -60,7 +79,11 @@ export const showTerm = (term: Term): string => {
   }
   if (term.tag === 'App')
     return flattenApp(term)
-      .map(t => showTermParens(t.tag === 'Abs' || t.tag === 'App', t))
+      .map(t => showTermParens(t.tag === 'Abs' || t.tag === 'App' || t.tag === 'Con' || t.tag === 'Decon', t))
       .join(' ');
+  if (term.tag === 'Con')
+    return `@${term.con} ${showTerm(term.body)}`;
+  if (term.tag === 'Decon')
+    return `~${term.con} ${showTerm(term.body)}`;
   return impossible('showTerm');
 };

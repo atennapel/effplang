@@ -16,3 +16,10 @@ export const Cons = <T>(head: T, tail: List<T>): Cons<T> =>
 export const listFrom = <T>(vs: T[]): List<T> =>
   vs.reduceRight((x, y) => Cons(y, x), Nil as List<T>);
 export const list = <T>(...vs: T[]): List<T> => listFrom(vs);
+
+export const each = <T>(l: List<T>, fn: (val: T) => void): void => {
+  while (l.tag === 'Cons') {
+    fn(l.head);
+    l = l.tail;
+  }
+};

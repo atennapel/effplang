@@ -44,6 +44,7 @@ export const TApp = (left: Type, right: Type): TApp =>
   ({ tag: 'TApp', left, right });
 export const tappFrom = (ts: Type[]): Type => ts.reduce(TApp);
 export const tapp = (...ts: Type[]): Type => tappFrom(ts);
+export const tapp1 = (t: Type, as: Type[]): Type => as.reduce(TApp, t);
 
 export interface TFun {
   readonly tag: 'TApp';
@@ -100,6 +101,21 @@ export const prune = (type: Type): Type => {
 export const showTypePruned = (type: Type): string =>
   showType(prune(type));
 
+export const tvars = (type: Type, ret: TVar[] = []): TVar[] => {
+  if (type.tag === 'TVar') {
+    if (ret.indexOf(type) >= 0) return ret;
+    ret.push(type);
+    return ret;
+  }
+  if (type.tag === 'TMeta') {
+    if (type.type) return tvars(type.type, ret);
+    return ret;
+  }
+  if (type.tag === 'TApp')
+    return tvars(type.right, tvars(type.left, ret));
+  return ret;
+};
+
 export const occursTMeta = (x: TMeta, type: Type): boolean => {
   if (x === type) return true;
   if (type.tag === 'TMeta')
@@ -109,7 +125,25 @@ export const occursTMeta = (x: TMeta, type: Type): boolean => {
   return false;
 };
 
-type InstMap = { [name: string]: TMeta };
+export const occursTVar = (x: TVar, type: Type): boolean => {
+  if (x === type) return true;
+  if (type.tag === 'TMeta')
+    return type.type ? occursTVar(x, type.type) : false;
+  if (type.tag === 'TApp')
+    return occursTVar(x, type.left) || occursTVar(x, type.right);
+  return false;
+};
+
+export const occursTVars = (x: TVar[], type: Type): boolean => {
+  if (type.tag === 'TVar') return x.indexOf(type) >= 0;
+  if (type.tag === 'TMeta')
+    return type.type ? occursTVars(x, type.type) : false;
+  if (type.tag === 'TApp')
+    return occursTVars(x, type.left) || occursTVars(x, type.right);
+  return false;
+};
+
+export type InstMap = { [name: string]: TMeta };
 export const instantiate = (type: Type, map: InstMap = {}): Type => {
   if (type.tag === 'TVar')
     return map[type.name] || (map[type.name] = freshTMeta());
@@ -121,6 +155,35 @@ export const instantiate = (type: Type, map: InstMap = {}): Type => {
     return l === type.left && r === type.right ? type : TApp(l, r);
   }
   return type;
+};
+
+export const instantiateTVars = (tvs: TVarName[], type: Type, map: InstMap = {}): Type => {
+  if (type.tag === 'TVar')
+    return tvs.indexOf(type.name) >= 0 ? map[type.name] || (map[type.name] = freshTMeta()) : type;
+  if (type.tag === 'TMeta')
+    return type.type ? instantiateTVars(tvs, type.type, map) : type;
+  if (type.tag === 'TApp') {
+    const l = instantiateTVars(tvs, type.left, map);
+    const r = instantiateTVars(tvs, type.right, map);
+    return l === type.left && r === type.right ? type : TApp(l, r);
+  }
+  return type;
+};
+
+export type SkolMap = { [name: number]: true };
+export const skolemize = (type: Type, skols: SkolMap = {}): Type => {
+  const utms: InstMap = {};
+  const itype = instantiate(type, utms);
+  for (let k in utms) skols[utms[k].id] = true;
+  return itype;
+};
+
+export const occursSkol = (skols: SkolMap, type: Type): boolean => {
+  if (type.tag === 'TMeta')
+    return type.type ? occursSkol(skols, type.type) : skols[type.id];
+  if (type.tag === 'TApp')
+    return occursSkol(skols, type.left) || occursSkol(skols, type.right);
+  return false;
 };
 
 export const generalize = (type: Type): Type => {
