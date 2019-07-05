@@ -29,6 +29,7 @@ const defs: Def[] = [
   DType('Id', [['t', null]], PScheme([], tv('t'))),
   DType('Pair', [['a', null], ['b', null]], PScheme([['r', null]], tfun(tfun(tv('a'), tv('b'), tv('r')), tv('r')))),
   DType('Phantom', [['p', null]], PScheme([], tInt)),
+  DType('Nat', [], PScheme([['r', null]], tfun(tv('r'), tfun(TCon('Nat'), tv('r')), tv('r')))),
   DLet('Pair', abs(['a', 'b'], Con('Pair', abs(['f'], app(v('f'), v('a'), v('b')))))),
   DLet('id', abs(['x'], v('x'))),
   DLet('id', abs(['x'], v('x')), PScheme([['t', null]], tfun(tv('t'), tv('t')))),
@@ -36,6 +37,7 @@ const defs: Def[] = [
   DLet('test', abs(['x'], Decon('IdF', v('x')))),
   DLet('test2', Con('IdF', v('id'))),
   DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), PScheme([['t', null]], tfun(tv('t'), tv('t'))))),
+  DLet('foldNat', abs(['n', 'z', 'f'], app(Decon('Nat', v('n')), v('z'), abs(['m'], app(v('f'), app(v('foldNat'), v('m'), v('z'), v('f')))))), PScheme([['r', null]], tfun(TCon('Nat'), tv('r'), tfun(tv('r'), tv('r')), tv('r')))),
 ];
 
 setConfig({ debug: false });

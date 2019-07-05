@@ -5,9 +5,9 @@ import { impossible, terr } from './util';
 import { unify, subsume } from './unification';
 import { LTEnv, extend, lookup, gtenv, showLTEnv } from './env';
 import { Def } from './definitions';
-import { kType, resetKMetaId, kfunFrom, showKind } from './kinds';
+import { kType, resetKMetaId, kfunFrom, showKind, KMeta, freshKMeta, pruneKind } from './kinds';
 import { log } from './config';
-import { kindOf, inferKind, inferKindDef } from './kindinference';
+import { kindOf, inferKind, inferKindDef, unifyKinds } from './kindinference';
 
 const synth = (env: LTEnv, term: Term): Type => {
   log(() => `synth ${showTerm(term)} in ${showLTEnv(env)}`);
@@ -87,17 +87,22 @@ export const infer = (term: Term, env: LTEnv = Nil): Scheme => {
 };
 
 export const inferDefs = (ds: Def[]): void => {
+  resetKMetaId();
   for (const def of ds) {
     if (def.tag === 'DType') {
       if (gtenv.types[def.name])
         return terr(`type ${def.name} is already defined`);
+      const tcon = TCon(def.name);
+      const kv = freshKMeta();
+      gtenv.types[def.name] = {
+        tcon,
+        kind: kv,
+      };
       const [params, scheme] = inferKindDef(def);
       const ks = params.map(([_, k]) => k);
       ks.push(kType);
-      gtenv.types[def.name] = {
-        tcon: TCon(def.name),
-        kind: kfunFrom(ks),
-      };
+      unifyKinds(kv, kfunFrom(ks));
+      gtenv.types[def.name].kind = pruneKind(gtenv.types[def.name].kind);
       gtenv.cons[def.name] = {
         params: params,
         type: scheme,

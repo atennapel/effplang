@@ -14,7 +14,7 @@ const unifyKMeta = (x: KMeta, t: Kind): void => {
   x.kind = t;
 };
 
-const unifyKinds = (a: Kind, b: Kind): void => {
+export const unifyKinds = (a: Kind, b: Kind): void => {
   log(() => `unifyKinds ${showKind(a)} ~ ${showKind(b)}`);
   if (a === b) return;
   if (a.tag === 'KMeta') return unifyKMeta(a, b);
