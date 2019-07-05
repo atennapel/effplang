@@ -1,0 +1,475 @@
+
+> effplang@1.0.0 runindex C:\Users\albert\git\effplang
+> npm run build && node build/src/index
+
+
+> effplang@1.0.0 build C:\Users\albert\git\effplang
+> tsc
+
+type MyInt = Int
+type IdF = forall (t : ?). t -> t
+type Id (t : ?) = t
+type Pair (a : ?) (b : ?) = forall (r : ?). (a -> b -> r) -> r
+type Phantom (p : ?) = Int
+type Nat = forall (r : ?). r -> (Nat -> r) -> r
+let id = \x -> x
+let id : forall (t : ?). t -> t = \x -> x
+let const = \x y -> x
+let Pair = \a b -> @Pair (\f -> f a b)
+let test3 = let myid : forall (t : ?). t -> t = \x -> x in Pair (myid zero) (myid true)
+let foldNat : forall (r : ?). Nat -> r -> (r -> r) -> r = \n z f -> (~Nat n) z (\m -> f (foldNat m z f))
+let test = \x -> ~IdF x
+let test2 = @IdF id
+inferKind Int
+inferType Int
+unifyKinds Type ~ Type
+=> Int
+=> MyInt  = Int
+unifyKinds ?0 ~ Type
+unifyKMeta ?0 := Type
+inferKind forall (t : ?). t -> t
+inferType t -> t
+inferType -> t
+inferType ->
+inferType t
+unifyKinds Type -> Type -> Type ~ ?2 -> ?3
+unifyKinds Type ~ ?2
+unifyKMeta ?2 := Type
+unifyKinds Type -> Type ~ ?3
+unifyKMeta ?3 := Type -> Type
+inferType t
+unifyKinds ?3{Type -> Type} ~ ?2{Type} -> ?4
+unifyKMeta ?3{Type -> Type} := ?2{Type} -> ?4
+unifyKinds Type -> Type ~ ?2{Type} -> ?4
+unifyKinds Type ~ ?2{Type}
+unifyKMeta ?2{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?4
+unifyKMeta ?4 := Type
+unifyKinds ?4{Type} ~ Type
+unifyKMeta ?4{Type} := Type
+unifyKinds Type ~ Type
+=> forall (t : Type). t -> t
+=> IdF  = forall (t : Type). t -> t
+unifyKinds ?1 ~ Type
+unifyKMeta ?1 := Type
+inferKind t
+inferType t
+unifyKinds ?6 ~ Type
+unifyKMeta ?6 := Type
+=> t
+=> Id (t : Type) = t
+unifyKinds ?5 ~ Type -> Type
+unifyKMeta ?5 := Type -> Type
+inferKind forall (r : ?). (a -> b -> r) -> r
+inferType (a -> b -> r) -> r
+inferType -> (a -> b -> r)
+inferType ->
+inferType a -> b -> r
+inferType -> a
+inferType ->
+inferType a
+unifyKinds Type -> Type -> Type ~ ?8 -> ?11
+unifyKinds Type ~ ?8
+unifyKMeta ?8 := Type
+unifyKinds Type -> Type ~ ?11
+unifyKMeta ?11 := Type -> Type
+inferType b -> r
+inferType -> b
+inferType ->
+inferType b
+unifyKinds Type -> Type -> Type ~ ?9 -> ?12
+unifyKinds Type ~ ?9
+unifyKMeta ?9 := Type
+unifyKinds Type -> Type ~ ?12
+unifyKMeta ?12 := Type -> Type
+inferType r
+unifyKinds ?12{Type -> Type} ~ ?10 -> ?13
+unifyKMeta ?12{Type -> Type} := ?10 -> ?13
+unifyKinds Type -> Type ~ ?10 -> ?13
+unifyKinds Type ~ ?10
+unifyKMeta ?10 := Type
+unifyKinds Type ~ ?13
+unifyKMeta ?13 := Type
+unifyKinds ?11{Type -> Type} ~ ?13{Type} -> ?14
+unifyKMeta ?11{Type -> Type} := ?13{Type} -> ?14
+unifyKinds Type -> Type ~ ?13{Type} -> ?14
+unifyKinds Type ~ ?13{Type}
+unifyKMeta ?13{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?14
+unifyKMeta ?14 := Type
+unifyKinds Type -> Type -> Type ~ ?14{Type} -> ?15
+unifyKinds Type ~ ?14{Type}
+unifyKMeta ?14{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type -> Type ~ ?15
+unifyKMeta ?15 := Type -> Type
+inferType r
+unifyKinds ?15{Type -> Type} ~ ?10{Type} -> ?16
+unifyKMeta ?15{Type -> Type} := ?10{Type} -> ?16
+unifyKinds Type -> Type ~ ?10{Type} -> ?16
+unifyKinds Type ~ ?10{Type}
+unifyKMeta ?10{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?16
+unifyKMeta ?16 := Type
+unifyKinds ?16{Type} ~ Type
+unifyKMeta ?16{Type} := Type
+unifyKinds Type ~ Type
+=> forall (r : Type). (a -> b -> r) -> r
+=> Pair (a : Type) (b : Type) = forall (r : Type). (a -> b -> r) -> r
+unifyKinds ?7 ~ Type -> Type -> Type
+unifyKMeta ?7 := Type -> Type -> Type
+inferKind Int
+inferType Int
+unifyKinds Type ~ Type
+=> Int
+=> Phantom (p : Type) = Int
+unifyKinds ?17 ~ Type -> Type
+unifyKMeta ?17 := Type -> Type
+inferKind forall (r : ?). r -> (Nat -> r) -> r
+inferType r -> (Nat -> r) -> r
+inferType -> r
+inferType ->
+inferType r
+unifyKinds Type -> Type -> Type ~ ?20 -> ?21
+unifyKinds Type ~ ?20
+unifyKMeta ?20 := Type
+unifyKinds Type -> Type ~ ?21
+unifyKMeta ?21 := Type -> Type
+inferType (Nat -> r) -> r
+inferType -> (Nat -> r)
+inferType ->
+inferType Nat -> r
+inferType -> Nat
+inferType ->
+inferType Nat
+unifyKinds Type -> Type -> Type ~ ?19 -> ?22
+unifyKinds Type ~ ?19
+unifyKMeta ?19 := Type
+unifyKinds Type -> Type ~ ?22
+unifyKMeta ?22 := Type -> Type
+inferType r
+unifyKinds ?22{Type -> Type} ~ ?20{Type} -> ?23
+unifyKMeta ?22{Type -> Type} := ?20{Type} -> ?23
+unifyKinds Type -> Type ~ ?20{Type} -> ?23
+unifyKinds Type ~ ?20{Type}
+unifyKMeta ?20{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?23
+unifyKMeta ?23 := Type
+unifyKinds Type -> Type -> Type ~ ?23{Type} -> ?24
+unifyKinds Type ~ ?23{Type}
+unifyKMeta ?23{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type -> Type ~ ?24
+unifyKMeta ?24 := Type -> Type
+inferType r
+unifyKinds ?24{Type -> Type} ~ ?20{Type} -> ?25
+unifyKMeta ?24{Type -> Type} := ?20{Type} -> ?25
+unifyKinds Type -> Type ~ ?20{Type} -> ?25
+unifyKinds Type ~ ?20{Type}
+unifyKMeta ?20{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?25
+unifyKMeta ?25 := Type
+unifyKinds ?21{Type -> Type} ~ ?25{Type} -> ?26
+unifyKMeta ?21{Type -> Type} := ?25{Type} -> ?26
+unifyKinds Type -> Type ~ ?25{Type} -> ?26
+unifyKinds Type ~ ?25{Type}
+unifyKMeta ?25{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?26
+unifyKMeta ?26 := Type
+unifyKinds ?26{Type} ~ Type
+unifyKMeta ?26{Type} := Type
+unifyKinds Type ~ Type
+=> forall (r : Type). r -> (Nat -> r) -> r
+=> Nat  = forall (r : Type). r -> (Nat -> r) -> r
+unifyKinds ?19{Type} ~ Type
+unifyKMeta ?19{Type} := Type
+unifyKinds Type ~ Type
+inferKind forall (t : ?). t -> t
+inferType t -> t
+inferType -> t
+inferType ->
+inferType t
+unifyKinds Type -> Type -> Type ~ ?27 -> ?28
+unifyKinds Type ~ ?27
+unifyKMeta ?27 := Type
+unifyKinds Type -> Type ~ ?28
+unifyKMeta ?28 := Type -> Type
+inferType t
+unifyKinds ?28{Type -> Type} ~ ?27{Type} -> ?29
+unifyKMeta ?28{Type -> Type} := ?27{Type} -> ?29
+unifyKinds Type -> Type ~ ?27{Type} -> ?29
+unifyKinds Type ~ ?27{Type}
+unifyKMeta ?27{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?29
+unifyKMeta ?29 := Type
+unifyKinds ?29{Type} ~ Type
+unifyKMeta ?29{Type} := Type
+unifyKinds Type ~ Type
+=> forall (t : Type). t -> t
+inferKind forall (r : ?). Nat -> r -> (r -> r) -> r
+inferType Nat -> r -> (r -> r) -> r
+inferType -> Nat
+inferType ->
+inferType Nat
+unifyKinds Type -> Type -> Type ~ Type -> ?31
+unifyKinds Type ~ Type
+unifyKinds Type -> Type ~ ?31
+unifyKMeta ?31 := Type -> Type
+inferType r -> (r -> r) -> r
+inferType -> r
+inferType ->
+inferType r
+unifyKinds Type -> Type -> Type ~ ?30 -> ?32
+unifyKinds Type ~ ?30
+unifyKMeta ?30 := Type
+unifyKinds Type -> Type ~ ?32
+unifyKMeta ?32 := Type -> Type
+inferType (r -> r) -> r
+inferType -> (r -> r)
+inferType ->
+inferType r -> r
+inferType -> r
+inferType ->
+inferType r
+unifyKinds Type -> Type -> Type ~ ?30{Type} -> ?33
+unifyKinds Type ~ ?30{Type}
+unifyKMeta ?30{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type -> Type ~ ?33
+unifyKMeta ?33 := Type -> Type
+inferType r
+unifyKinds ?33{Type -> Type} ~ ?30{Type} -> ?34
+unifyKMeta ?33{Type -> Type} := ?30{Type} -> ?34
+unifyKinds Type -> Type ~ ?30{Type} -> ?34
+unifyKinds Type ~ ?30{Type}
+unifyKMeta ?30{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?34
+unifyKMeta ?34 := Type
+unifyKinds Type -> Type -> Type ~ ?34{Type} -> ?35
+unifyKinds Type ~ ?34{Type}
+unifyKMeta ?34{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type -> Type ~ ?35
+unifyKMeta ?35 := Type -> Type
+inferType r
+unifyKinds ?35{Type -> Type} ~ ?30{Type} -> ?36
+unifyKMeta ?35{Type -> Type} := ?30{Type} -> ?36
+unifyKinds Type -> Type ~ ?30{Type} -> ?36
+unifyKinds Type ~ ?30{Type}
+unifyKMeta ?30{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?36
+unifyKMeta ?36 := Type
+unifyKinds ?32{Type -> Type} ~ ?36{Type} -> ?37
+unifyKMeta ?32{Type -> Type} := ?36{Type} -> ?37
+unifyKinds Type -> Type ~ ?36{Type} -> ?37
+unifyKinds Type ~ ?36{Type}
+unifyKMeta ?36{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?37
+unifyKMeta ?37 := Type
+unifyKinds ?31{Type -> Type} ~ ?37{Type} -> ?38
+unifyKMeta ?31{Type -> Type} := ?37{Type} -> ?38
+unifyKinds Type -> Type ~ ?37{Type} -> ?38
+unifyKinds Type ~ ?37{Type}
+unifyKMeta ?37{Type} := Type
+unifyKinds Type ~ Type
+unifyKinds Type ~ ?38
+unifyKMeta ?38 := Type
+unifyKinds ?38{Type} ~ Type
+unifyKMeta ?38{Type} := Type
+unifyKinds Type ~ Type
+=> forall (r : Type). Nat -> r -> (r -> r) -> r
+infer \x -> x
+synth \x -> x in []
+synth x in [x : ?0]
+kindOf ?0 -> ?0
+kindOf -> ?0
+kindOf ->
+forall (a : Type). a -> a
+\x -> x
+?0{a}
+subsume forall (a : Type). a -> a <: forall (t : Type). t -> t
+unify ?2$a -> ?2$a ~ ?1$t -> ?1$t
+kindOf ?2$a -> ?2$a
+kindOf -> ?2$a
+kindOf ->
+kindOf ?1$t -> ?1$t
+kindOf -> ?1$t
+kindOf ->
+unify -> ?2$a ~ -> ?1$t
+kindOf -> ?2$a
+kindOf ->
+kindOf -> ?1$t
+kindOf ->
+unify -> ~ ->
+unify ?2$a ~ ?1$t
+kindOf ?2$a
+kindOf ?1$t
+unifyTMeta ?2$a := ?1$t
+unify ?2$a{?1$t} ~ ?1$t
+kindOf ?2$a{?1$t}
+kindOf ?1$t
+unifyTMeta ?2$a{?1$t} := ?1$t
+unify ?1$t ~ ?1$t
+=> id
+=> forall (a : Type). a -> a
+=> (return (/\(a : Type). (return (\(x : a). (return x)))))
+infer \x -> x
+synth \x -> x in []
+synth x in [x : ?0]
+kindOf ?0 -> ?0
+kindOf -> ?0
+kindOf ->
+forall (a : Type). a -> a
+\x -> x
+?0{a}
+subsume forall (a : Type). a -> a <: forall (t : Type). t -> t
+unify ?2$a -> ?2$a ~ ?1$t -> ?1$t
+kindOf ?2$a -> ?2$a
+kindOf -> ?2$a
+kindOf ->
+kindOf ?1$t -> ?1$t
+kindOf -> ?1$t
+kindOf ->
+unify -> ?2$a ~ -> ?1$t
+kindOf -> ?2$a
+kindOf ->
+kindOf -> ?1$t
+kindOf ->
+unify -> ~ ->
+unify ?2$a ~ ?1$t
+kindOf ?2$a
+kindOf ?1$t
+unifyTMeta ?2$a := ?1$t
+unify ?2$a{?1$t} ~ ?1$t
+kindOf ?2$a{?1$t}
+kindOf ?1$t
+unifyTMeta ?2$a{?1$t} := ?1$t
+unify ?1$t ~ ?1$t
+=> id
+=> forall (a : Type). a -> a
+=> (return (/\(a : Type). (return (\(x : a). (return x)))))
+infer \x y -> x
+synth \x y -> x in []
+synth \y -> x in [x : ?0]
+synth x in [y : ?1, x : ?0]
+kindOf ?0 -> ?1 -> ?0
+kindOf -> ?0
+kindOf ->
+forall (a : Type) (b : Type). a -> b -> a
+\x y -> x
+?0{a}
+\y -> x
+?1{b}
+=> const
+=> forall (a : Type) (b : Type). a -> b -> a
+=> (return (/\(a : Type). (return (/\(b : Type). (return (\(x : a). (return (\(y : b). (return x)))))))))
+infer \a b -> @Pair (\f -> f a b)
+synth \a b -> @Pair (\f -> f a b) in []
+synth \b -> @Pair (\f -> f a b) in [a : ?0]
+synth @Pair (\f -> f a b) in [b : ?1, a : ?0]
+synth \f -> f a b in [b : ?1, a : ?0]
+synth f a b in [f : ?2, b : ?1, a : ?0]
+synth f a in [f : ?2, b : ?1, a : ?0]
+synth f in [f : ?2, b : ?1, a : ?0]
+synth a in [f : ?2, b : ?1, a : ?0]
+unify ?2 ~ ?0 -> ?3
+kindOf ?2
+kindOf ?0 -> ?3
+kindOf -> ?0
+kindOf ->
+unifyTMeta ?2 := ?0 -> ?3
+synth b in [f : ?2{?0 -> ?3}, b : ?1, a : ?0]
+unify ?3 ~ ?1 -> ?4
+kindOf ?3
+kindOf ?1 -> ?4
+kindOf -> ?1
+kindOf ->
+unifyTMeta ?3 := ?1 -> ?4
+unify ?2{?0 -> ?3{?1 -> ?4}} -> ?4 ~ (?5$a -> ?6$b -> ?7$r) -> ?7$r
+kindOf ?2{?0 -> ?3{?1 -> ?4}} -> ?4
+kindOf -> ?2{?0 -> ?3{?1 -> ?4}}
+kindOf ->
+kindOf (?5$a -> ?6$b -> ?7$r) -> ?7$r
+kindOf -> (?5$a -> ?6$b -> ?7$r)
+kindOf ->
+unify -> ?2{?0 -> ?3{?1 -> ?4}} ~ -> (?5$a -> ?6$b -> ?7$r)
+kindOf -> ?2{?0 -> ?3{?1 -> ?4}}
+kindOf ->
+kindOf -> (?5$a -> ?6$b -> ?7$r)
+kindOf ->
+unify -> ~ ->
+unify ?2{?0 -> ?3{?1 -> ?4}} ~ ?5$a -> ?6$b -> ?7$r
+kindOf ?2{?0 -> ?3{?1 -> ?4}}
+kindOf ?5$a -> ?6$b -> ?7$r
+kindOf -> ?5$a
+kindOf ->
+unifyTMeta ?2{?0 -> ?3{?1 -> ?4}} := ?5$a -> ?6$b -> ?7$r
+unify ?0 -> ?3{?1 -> ?4} ~ ?5$a -> ?6$b -> ?7$r
+kindOf ?0 -> ?3{?1 -> ?4}
+kindOf -> ?0
+kindOf ->
+kindOf ?5$a -> ?6$b -> ?7$r
+kindOf -> ?5$a
+kindOf ->
+unify -> ?0 ~ -> ?5$a
+kindOf -> ?0
+kindOf ->
+kindOf -> ?5$a
+kindOf ->
+unify -> ~ ->
+unify ?0 ~ ?5$a
+kindOf ?0
+kindOf ?5$a
+unifyTMeta ?0 := ?5$a
+unify ?3{?1 -> ?4} ~ ?6$b -> ?7$r
+kindOf ?3{?1 -> ?4}
+kindOf ?6$b -> ?7$r
+kindOf -> ?6$b
+kindOf ->
+unifyTMeta ?3{?1 -> ?4} := ?6$b -> ?7$r
+unify ?1 -> ?4 ~ ?6$b -> ?7$r
+kindOf ?1 -> ?4
+kindOf -> ?1
+kindOf ->
+kindOf ?6$b -> ?7$r
+kindOf -> ?6$b
+kindOf ->
+unify -> ?1 ~ -> ?6$b
+kindOf -> ?1
+kindOf ->
+kindOf -> ?6$b
+kindOf ->
+unify -> ~ ->
+unify ?1 ~ ?6$b
+kindOf ?1
+kindOf ?6$b
+unifyTMeta ?1 := ?6$b
+unify ?4 ~ ?7$r
+kindOf ?4
+kindOf ?7$r
+unifyTMeta ?4 := ?7$r
+unify ?4$r{?7$r} ~ ?7$r
+kindOf ?4$r{?7$r}
+kindOf ?7$r
+unifyTMeta ?4$r{?7$r} := ?7$r
+unify ?7$r ~ ?7$r
+kindOf ?0$a{?5$a} -> ?1$b{?6$b} -> Pair ?5$a ?6$b
+kindOf -> ?0$a{?5$a}
+kindOf ->
+forall (a : Type) (b : Type). a -> b -> Pair a b
+\a b -> @Pair (\f -> f a b)
+?0$a{?5$a{a}}
+\b -> @Pair (\f -> f a b)
+?1$b{?6$b{b}}
+\f -> f a b
+?2{?0$a{?5$a{a}} -> ?3{?1$b{?6$b{b}} -> ?4$r{?7$r}}}
