@@ -24,6 +24,7 @@ const defs: Def[] = [
   DType('Pair', ['a', 'b'], tfun(tfun(tv('a'), tv('b'), tv('r')), tv('r'))),
   DLet('Pair', abs(['a', 'b'], Con('Pair', abs(['f'], app(v('f'), v('a'), v('b')))))),
   DLet('id', abs(['x'], v('x'))),
+  DLet('const', abs(['x', 'y'], v('x'))),
   DLet('test', abs(['x'], Decon('IdF', v('x')))),
   DLet('test2', Con('IdF', v('id'))),
   DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), tfun(tv('t'), tv('t')))),
@@ -36,7 +37,8 @@ console.log(compileDefs(defs, x => `const ${x}`));
 
 /**
  * TODO:
- * - tvar naming in generalization
- * - recursive definitions without type annotations
- * - recursive lets without type annotations
+ * - kinds
+ * - kind inference
+ * 
+ * - recursion without annotation
  */

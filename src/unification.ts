@@ -3,7 +3,11 @@ import { terr } from './util';
 
 const unifyTMeta = (x: TMeta, t: Type, skols: SkolMap): void => {
   if (x.type) return unify(x.type, t, skols);
-  if (t.tag === 'TMeta' && t.type) return unifyTMeta(x, t.type, skols);
+  if (t.tag === 'TMeta') {
+    if (!x.name && t.name) x.name = t.name;
+    if (!t.name && x.name) t.name = x.name;
+    if (t.type) return unifyTMeta(x, t.type, skols);
+  }
   if (occursTMeta(x, t))
     return terr(`occurs check failed: ${showTypePruned(x)} in ${showTypePruned(t)}`);
   x.type = t;
