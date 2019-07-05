@@ -40,7 +40,7 @@ const defs: Def[] = [
   DLet('foldNat', abs(['n', 'z', 'f'], app(Decon('Nat', v('n')), v('z'), abs(['m'], app(v('f'), app(v('foldNat'), v('m'), v('z'), v('f')))))), PScheme([['r', null]], tfun(TCon('Nat'), tv('r'), tfun(tv('r'), tv('r')), tv('r')))),
 ];
 
-setConfig({ debug: false });
+setConfig({ debug: true });
 
 console.log(showDefs(defs));
 inferDefs(defs);
@@ -49,5 +49,8 @@ console.log(compileDefs(defs, x => `const ${x}`));
 
 /**
  * TODO:
+ * - infer positions of type applications
+ * - flatten Seqs
+ * - CEK machine
  * - recursion without annotation
  */

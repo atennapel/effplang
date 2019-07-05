@@ -16,6 +16,12 @@ export interface Var {
 }
 export const Var = (name: VarName): Var =>
   ({ tag: 'Var', name });
+  
+type VarId = number;
+let varId: VarId = 0;
+const freshVarId = (): VarId => varId++;
+export const resetVarId = () => { varId = 0 }
+export const freshVarName = (): VarName => `\$${freshVarId()}`;
 
 export interface Abs {
   readonly tag: 'Abs';
