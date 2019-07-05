@@ -1,4 +1,6 @@
 import { impossible, terr } from './util';
+import { Kind, showKind } from './kinds';
+import { TVarKinds } from './kindinference';
 
 export type Type
   = TCon
@@ -29,13 +31,14 @@ export const resetTMetaId = () => { tmetaId = 0 }
 export interface TMeta {
   readonly tag: 'TMeta';
   readonly id: TMetaId;
+  readonly kind: Kind;
   name: TVarName | null;
   type: Type | null;
 }
-export const TMeta = (id: TMetaId, name: TVarName | null = null): TMeta =>
-  ({ tag: 'TMeta', id, type: null, name });
-export const freshTMeta = (name: TVarName | null = null) =>
-  TMeta(freshTMetaId(), name);
+export const TMeta = (id: TMetaId, kind: Kind, name: TVarName | null = null): TMeta =>
+  ({ tag: 'TMeta', id, kind, type: null, name });
+export const freshTMeta = (kind: Kind, name: TVarName | null = null) =>
+  TMeta(freshTMetaId(), kind, name);
 
 export interface TApp {
   readonly tag: 'TApp';
@@ -69,6 +72,14 @@ export const tfunFrom = (ts: Type[]): Type =>
   ts.reduceRight((x, y) => TFun(y, x));
 export const tfun = (...ts: Type[]): Type => tfunFrom(ts);
 
+export interface Scheme {
+  readonly tag: 'Scheme';
+  readonly params: [TVarName, Kind][];
+  readonly type: Type;
+}
+export const Scheme = (params: [TVarName, Kind][], type: Type): Scheme =>
+  ({ tag: 'Scheme', params, type });
+
 const showTypeParens = (b: boolean, type: Type) =>
   b ? `(${showType(type)})` : showType(type);
 export const showType = (type: Type): string => {
@@ -89,6 +100,9 @@ export const showType = (type: Type): string => {
   return impossible('showType');
 };
 
+export const showScheme = (scheme: Scheme): string =>
+  `forall ${scheme.params.map(([x, k]) => `(${x} : ${showKind(k)})`).join(' ')}. ${showType(scheme.type)}`;
+
 export const prune = (type: Type): Type => {
   if (type.tag === 'TMeta') {
     if (!type.type) return type;
@@ -100,6 +114,10 @@ export const prune = (type: Type): Type => {
     return l === type.left && r === type.right ? type : TApp(l, r);
   }
   return type;
+};
+export const pruneScheme = (scheme: Scheme): Scheme => {
+  const t = prune(scheme.type);
+  return t !== scheme.type ? Scheme(scheme.params, t) : scheme;
 };
 export const showTypePruned = (type: Type): string =>
   showType(prune(type));
@@ -147,22 +165,13 @@ export const occursTVars = (x: TVar[], type: Type): boolean => {
 };
 
 export type InstMap = { [name: string]: TMeta };
-export const instantiate = (type: Type, map: InstMap = {}): Type => {
-  if (type.tag === 'TVar')
-    return map[type.name] || (map[type.name] = freshTMeta(type.name));
-  if (type.tag === 'TMeta')
-    return type.type ? instantiate(type.type, map) : type;
-  if (type.tag === 'TApp') {
-    const l = instantiate(type.left, map);
-    const r = instantiate(type.right, map);
-    return l === type.left && r === type.right ? type : TApp(l, r);
+export const instantiateTVars = (tvs: [TVarName, Kind][], type: Type, map: InstMap = {}): Type => {
+  if (type.tag === 'TVar') {
+    const name = type.name;
+    const res = tvs.find(([x, _]) => x === name);
+    if (!res) return type;
+    return map[name] || (map[name] = freshTMeta(res[1], name));
   }
-  return type;
-};
-
-export const instantiateTVars = (tvs: TVarName[], type: Type, map: InstMap = {}): Type => {
-  if (type.tag === 'TVar')
-    return tvs.indexOf(type.name) >= 0 ? map[type.name] || (map[type.name] = freshTMeta(type.name)) : type;
   if (type.tag === 'TMeta')
     return type.type ? instantiateTVars(tvs, type.type, map) : type;
   if (type.tag === 'TApp') {
@@ -172,6 +181,8 @@ export const instantiateTVars = (tvs: TVarName[], type: Type, map: InstMap = {})
   }
   return type;
 };
+export const instantiate = (scheme: Scheme, map: InstMap = {}): Type =>
+  instantiateTVars(scheme.params, scheme.type, map);
 
 export type SkolMap = { [name: number]: true };
 export const skolemize = (type: Type, skols: SkolMap = {}): Type => {
@@ -189,24 +200,32 @@ export const occursSkol = (skols: SkolMap, type: Type): boolean => {
   return false;
 };
 
-export const generalize = (type: Type, ns: TVarName[] = []): Type => {
-  if (type.tag === 'TMeta')
-    return type.type ?
-      generalize(type.type, ns) :
-      (type.type = TVar(freshTVarName(ns, type.name)));
+export const generalizeR = (type: Type, ns: TVarName[], tvs: TVarKinds): Type => {
+  if (type.tag === 'TMeta') {
+    if (type.type) return generalizeR(type.type, ns, tvs);
+    const x = freshTVarName(tvs, type.name);
+    ns.push(x);
+    tvs[x] = type.kind;
+    return type.type = TVar(x);
+  }
   if (type.tag === 'TApp') {
-    const l = generalize(type.left, ns);
-    const r = generalize(type.right, ns);
+    const l = generalizeR(type.left, ns, tvs);
+    const r = generalizeR(type.right, ns, tvs);
     return l === type.left && r === type.right ? type : TApp(l, r);
   }
   return type;
 };
+export const generalize = (type: Type): Scheme => {
+  const ns: TVarName[] = [];
+  const ks: TVarKinds = {};
+  const gtype = generalizeR(type, ns, ks);
+  return Scheme(ns.map(x => [x, ks[x]]), gtype);
+};
 
-const freshTVarName = (ns: TVarName[], given: TVarName | null = null): TVarName => {
+const freshTVarName = (tvs: TVarKinds, given: TVarName | null = null): TVarName => {
   const isGiven = given !== null;
   let name: TVarName = given || 'a';
-  while (ns.indexOf(name) >= 0) name = nextTVarName(name, isGiven);
-  ns.push(name);
+  while (tvs[name]) name = nextTVarName(name, isGiven);
   return name;
 };
 const nextTVarName = (name: TVarName, given: boolean): TVarName => {

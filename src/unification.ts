@@ -1,5 +1,6 @@
-import { Type, TMeta, showTypePruned, occursTMeta, instantiate, tvars, occursTVars, showType, SkolMap } from './types';
+import { Type, TMeta, showTypePruned, occursTMeta, instantiate, tvars, occursTVars, showType, SkolMap, Scheme, showScheme, skolemize } from './types';
 import { terr } from './util';
+import { eqKindOf } from './kindinference';
 
 const unifyTMeta = (x: TMeta, t: Type, skols: SkolMap): void => {
   if (x.type) return unify(x.type, t, skols);
@@ -15,6 +16,8 @@ const unifyTMeta = (x: TMeta, t: Type, skols: SkolMap): void => {
 
 export const unify = (a: Type, b: Type, skols: SkolMap = {}): void => {
   if (a === b) return;
+  if (!eqKindOf(a, b))
+    return terr(`kind mismatch ${showTypePruned(a)} ~ ${showTypePruned(b)}`);
   if (a.tag === 'TMeta' && !skols[a.id]) return unifyTMeta(a, b, skols);
   if (b.tag === 'TMeta' && !skols[b.id]) return unifyTMeta(b, a, skols);
   if (a.tag === 'TApp' && b.tag === 'TApp') {
@@ -27,10 +30,8 @@ export const unify = (a: Type, b: Type, skols: SkolMap = {}): void => {
   return terr(`cannot unify ${showTypePruned(a)} ~ ${showTypePruned(b)}`);
 };
 
-export const subsume = (a: Type, b: Type): void => {
-  const ta = instantiate(a);
-  unify(ta, b);
-  const tvs = tvars(b);
-  if (occursTVars(tvs, a))
-    return terr(`${showType(a)} not polymorphic enough in ${showType(a)} <: ${showType(b)}`);
+export const subsume = (a: Scheme, b: Type): void => {
+  const skols: SkolMap = {};
+  const itype = skolemize(b, skols);
+  unify(instantiate(a), itype, skols);
 };
