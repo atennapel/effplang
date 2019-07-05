@@ -1,5 +1,5 @@
 import { impossible } from './util';
-import { TConName, Type, showType, Scheme, showScheme } from './types';
+import { TConName, Type, showType, Scheme, showScheme, PScheme, showPScheme } from './types';
 
 export type Term
   = Var
@@ -59,11 +59,11 @@ export interface Let {
   readonly name: VarName;
   readonly val: Term;
   readonly body: Term;
-  readonly type: Scheme | null;
+  readonly type: PScheme | null;
 }
-export const Let = (name: VarName, val: Term, body: Term, type: Scheme | null = null): Let =>
+export const Let = (name: VarName, val: Term, body: Term, type: PScheme | null = null): Let =>
   ({ tag: 'Let', name, val, body, type });
-export const lets = (defs: ([VarName, Term] | [VarName, Term, Scheme | null])[], body: Term): Term =>
+export const lets = (defs: ([VarName, Term] | [VarName, Term, PScheme | null])[], body: Term): Term =>
   defs.reduceRight((t, d) => Let(d[0], d[1], t, d[2]), body);
 
 export interface Con {
@@ -96,7 +96,7 @@ export const showTerm = (term: Term): string => {
       .join(' ');
   if (term.tag === 'Let') {
     const v = term.val;
-    return `let ${term.name}${term.type ? ` : ${showScheme(term.type)}` : ''} = ${showTermParens(v.tag === 'Let', v)} in ${showTerm(term.body)}`;
+    return `let ${term.name}${term.type ? ` : ${showPScheme(term.type)}` : ''} = ${showTermParens(v.tag === 'Let', v)} in ${showTerm(term.body)}`;
   }
   if (term.tag === 'Con' || term.tag === 'Decon') {
     const b = term.body;

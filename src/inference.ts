@@ -7,7 +7,7 @@ import { LTEnv, extend, lookup, gtenv, showLTEnv } from './env';
 import { Def } from './definitions';
 import { kType, resetKMetaId, kfunFrom, showKind } from './kinds';
 import { log } from './config';
-import { kindOf } from './kindinference';
+import { kindOf, inferKind, inferKindDef } from './kindinference';
 
 const synth = (env: LTEnv, term: Term): Type => {
   log(() => `synth ${showTerm(term)} in ${showLTEnv(env)}`);
@@ -29,18 +29,20 @@ const synth = (env: LTEnv, term: Term): Type => {
     return tv;
   }
   if (term.tag === 'Let') {
-    const nenv = term.type ? extend(env, term.name, term.type) : env;
+    let atype: Scheme | null = null;
+    if (term.type) atype = inferKind(term.type);
+    const nenv = atype ? extend(env, term.name, atype) : env;
     const val = synth(nenv, term.val);
-    if (term.type) {
+    if (atype) {
       const skols: SkolMap = {};
-      const itype = skolemize(term.type, skols);
+      const itype = skolemize(atype, skols);
       unify(val, itype, skols);
       each(env, ({ name, scheme }) => {
         if (occursSkol(skols, scheme.type))
           terr(`skolem escape in ${name} : ${showTypePruned(scheme.type)} in ${showTerm(term)}`);
       });
     }
-    const type = term.type || Scheme([], val);
+    const type = atype || Scheme([], val);
     return synth(extend(env, term.name, type), term.body);
   }
   if (term.tag === 'Con') {
@@ -89,15 +91,16 @@ export const inferDefs = (ds: Def[]): void => {
     if (def.tag === 'DType') {
       if (gtenv.types[def.name])
         return terr(`type ${def.name} is already defined`);
-      const ks = def.params.map(([_, k]) => k);
+      const [params, scheme] = inferKindDef(def);
+      const ks = params.map(([_, k]) => k);
       ks.push(kType);
       gtenv.types[def.name] = {
         tcon: TCon(def.name),
         kind: kfunFrom(ks),
       };
       gtenv.cons[def.name] = {
-        params: def.params,
-        type: def.type,
+        params: params,
+        type: scheme,
       };
     }
   }
@@ -105,15 +108,17 @@ export const inferDefs = (ds: Def[]): void => {
     if (def.tag === 'DLet') {
       if (gtenv.vars[def.name])
         return terr(`${def.name} is already defined`);
-      if (def.type)
-        gtenv.vars[def.name] = def.type;
+      if (def.type) {
+        const scheme = inferKind(def.type);
+        gtenv.vars[def.name] = scheme;
+      }
     }
   }
   for (const def of ds) {
     if (def.tag === 'DLet') {
       const type = infer(def.term);
-      if (def.type)
-        subsume(type, def.type);
+      if (gtenv.vars[def.name])
+        subsume(type, gtenv.vars[def.name]);
       else
         gtenv.vars[def.name] = type;
     }

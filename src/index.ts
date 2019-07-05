@@ -1,4 +1,4 @@
-import { tfun, tapp, TVar, TCon, showType, Scheme } from './types';
+import { tfun, tapp, TVar, TCon, showType, Scheme, PScheme } from './types';
 import { Var, abs, app, showTerm, Con, Decon, Let } from './terms';
 import { infer, inferDefs } from './inference';
 import { list } from './list';
@@ -24,17 +24,18 @@ gtenv.vars.zero = Scheme([], tInt);
 gtenv.vars.inc = Scheme([], tfun(tInt, tInt));
 
 const defs: Def[] = [
-  DType('MyInt', [], Scheme([], tInt)),
-  DType('IdF', [], Scheme([['t', kType]], tfun(tv('t'), tv('t')))),
-  DType('Id', [['t', kType]], Scheme([], tv('t'))),
-  DType('Pair', [['a', kType], ['b', kType]], Scheme([['r', kType]], tfun(tfun(tv('a'), tv('b'), tv('r')), tv('r')))),
+  DType('MyInt', [], PScheme([], tInt)),
+  DType('IdF', [], PScheme([['t', null]], tfun(tv('t'), tv('t')))),
+  DType('Id', [['t', null]], PScheme([], tv('t'))),
+  DType('Pair', [['a', null], ['b', null]], PScheme([['r', null]], tfun(tfun(tv('a'), tv('b'), tv('r')), tv('r')))),
+  DType('Phantom', [['p', null]], PScheme([], tInt)),
   DLet('Pair', abs(['a', 'b'], Con('Pair', abs(['f'], app(v('f'), v('a'), v('b')))))),
   DLet('id', abs(['x'], v('x'))),
-  DLet('id', abs(['x'], v('x')), Scheme([['t', kType]], tfun(tv('t'), tv('t')))),
+  DLet('id', abs(['x'], v('x')), PScheme([['t', null]], tfun(tv('t'), tv('t')))),
   DLet('const', abs(['x', 'y'], v('x'))),
   DLet('test', abs(['x'], Decon('IdF', v('x')))),
   DLet('test2', Con('IdF', v('id'))),
-  DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), Scheme([['t', kType]], tfun(tv('t'), tv('t'))))),
+  DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), PScheme([['t', null]], tfun(tv('t'), tv('t'))))),
 ];
 
 setConfig({ debug: false });
@@ -46,6 +47,5 @@ console.log(compileDefs(defs, x => `const ${x}`));
 
 /**
  * TODO:
- * - kind inference
  * - recursion without annotation
  */

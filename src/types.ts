@@ -80,6 +80,14 @@ export interface Scheme {
 export const Scheme = (params: [TVarName, Kind][], type: Type): Scheme =>
   ({ tag: 'Scheme', params, type });
 
+export interface PScheme {
+  readonly tag: 'PScheme';
+  readonly params: [TVarName, Kind | null][];
+  readonly type: Type;
+}
+export const PScheme = (params: [TVarName, Kind | null][], type: Type): PScheme =>
+  ({ tag: 'PScheme', params, type });
+
 const showTypeParens = (b: boolean, type: Type) =>
   b ? `(${showType(type)})` : showType(type);
 export const showType = (type: Type): string => {
@@ -103,6 +111,9 @@ export const showType = (type: Type): string => {
 export const showScheme = (scheme: Scheme): string =>
   scheme.params.length === 0 ? showType(scheme.type) :
   `forall ${scheme.params.map(([x, k]) => `(${x} : ${showKind(k)})`).join(' ')}. ${showType(scheme.type)}`;
+export const showPScheme = (scheme: PScheme): string =>
+  scheme.params.length === 0 ? showType(scheme.type) :
+  `forall ${scheme.params.map(([x, k]) => `(${x} : ${k ? showKind(k) : '?'})`).join(' ')}. ${showType(scheme.type)}`;
 
 export const prune = (type: Type): Type => {
   if (type.tag === 'TMeta') {

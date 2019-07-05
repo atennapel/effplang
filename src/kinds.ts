@@ -61,20 +61,20 @@ export const eqKind = (a: Kind, b: Kind): boolean => {
   return false;
 };
 
-export const prune = (kind: Kind): Kind => {
+export const pruneKind = (kind: Kind): Kind => {
   if (kind.tag === 'KMeta') {
     if (!kind.kind) return kind;
-    return kind.kind = prune(kind.kind);
+    return kind.kind = pruneKind(kind.kind);
   }
   if (kind.tag === 'KFun') {
-    const l = prune(kind.left);
-    const r = prune(kind.right);
+    const l = pruneKind(kind.left);
+    const r = pruneKind(kind.right);
     return l === kind.left && r === kind.right ? kind : KFun(l, r);
   }
   return kind;
 };
 export const showKindPruned = (kind: Kind): string =>
-  showKind(prune(kind));
+  showKind(pruneKind(kind));
 
 export const occursKMeta = (x: KMeta, kind: Kind): boolean => {
   if (x === kind) return true;
