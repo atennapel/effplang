@@ -50,7 +50,6 @@ console.log(compileDefs(defs, x => `const ${x}`));
 
 /**
  * TODO:
- * - fix Constructors (infer type abstraction)
  * - infer positions of type applications
  * - flatten Seqs
  * - CEK machine

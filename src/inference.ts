@@ -1,14 +1,14 @@
 import { Nil, each } from './list';
 import { Term, showTerm, freshVarName } from './terms';
-import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta, TCon, instantiateTVars, InstMap, tapp1, skolemize, SkolMap, occursSkol, showTypePruned, Scheme, pruneScheme, tvars, showScheme, showType } from './types';
+import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta, TCon, instantiateTVars, InstMap, tapp1, skolemize, SkolMap, occursSkol, showTypePruned, Scheme, pruneScheme, tvars, showScheme, showType, freshTVarName, TVar } from './types';
 import { impossible, terr } from './util';
 import { unify, subsume } from './unification';
 import { LTEnv, extend, lookup, gtenv, showLTEnv } from './env';
 import { Def } from './definitions';
 import { kType, resetKMetaId, kfunFrom, showKind, KMeta, freshKMeta, pruneKind } from './kinds';
 import { log } from './config';
-import { kindOf, inferKind, inferKindDef, unifyKinds } from './kindinference';
-import { CComp, CReturn, CVar, CAbs, CApp, CSeq, CCon, CDecon, CAbsT, showCore } from './core';
+import { kindOf, inferKind, inferKindDef, unifyKinds, TVarKinds } from './kindinference';
+import { CComp, CReturn, CVar, CAbs, CApp, CSeq, CCon, CDecon, CAbsT, showCore, CVal } from './core';
 import { translateType, translateScheme, translateKind } from './translation';
 
 const synth = (env: LTEnv, term: Term): [Type, () => CComp] => {
@@ -95,10 +95,13 @@ const synth = (env: LTEnv, term: Term): [Type, () => CComp] => {
     return [
       tapp1(typeinfo.tcon, con.params.map(v => tms[v[0]])),
       () => {
+        const ns: TVarKinds = {};
+        for (let k in skols) skols[k].type = TVar(freshTVarName(ns, skols[k].name));
         const v = arg();
-        if (v.tag === 'CReturn') return CCon(term.con, v.val);
+        if (v.tag === 'CReturn') 
+          return CCon(term.con, con.type.params.reduce((p, [x, k]) => CAbsT(x, translateKind(k), CReturn(p)), v.val));
         const x = freshVarName();
-        return CSeq(x, v, CCon(term.con, CVar(x)));
+        return CSeq(x, v, CCon(term.con, con.type.params.reduce((p, [x, k]) => CAbsT(x, translateKind(k), CReturn(p)), CVar(x) as CVal)));
       },
     ];
   }

@@ -196,17 +196,17 @@ export const instantiateTVars = (tvs: [TVarName, Kind][], type: Type, map: InstM
 export const instantiate = (scheme: Scheme, map: InstMap = {}): Type =>
   instantiateTVars(scheme.params, scheme.type, map);
 
-export type SkolMap = { [name: number]: true };
+export type SkolMap = { [name: number]: TMeta };
 export const skolemize = (type: Scheme, skols: SkolMap = {}): Type => {
   const utms: InstMap = {};
   const itype = instantiate(type, utms);
-  for (let k in utms) skols[utms[k].id] = true;
+  for (let k in utms) skols[utms[k].id] = utms[k];
   return itype;
 };
 
 export const occursSkol = (skols: SkolMap, type: Type): boolean => {
   if (type.tag === 'TMeta')
-    return type.type ? occursSkol(skols, type.type) : skols[type.id];
+    return type.type ? occursSkol(skols, type.type) : !!skols[type.id];
   if (type.tag === 'TApp')
     return occursSkol(skols, type.left) || occursSkol(skols, type.right);
   return false;
@@ -234,7 +234,7 @@ export const generalize = (type: Type): Scheme => {
   return Scheme(ns.map(x => [x, ks[x]]), gtype);
 };
 
-const freshTVarName = (tvs: TVarKinds, given: TVarName | null = null): TVarName => {
+export const freshTVarName = (tvs: TVarKinds, given: TVarName | null = null): TVarName => {
   const isGiven = given !== null;
   let name: TVarName = given || 'a';
   while (tvs[name]) name = nextTVarName(name, isGiven);

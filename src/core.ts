@@ -42,12 +42,26 @@ export const CCon = (con: TConName, val: CVal): CCon => ({ tag: 'CCon', con, val
 export interface CDecon { readonly tag: 'CDecon'; readonly con: TConName; readonly val: CVal }
 export const CDecon = (con: TConName, val: CVal): CDecon => ({ tag: 'CDecon', con, val });
 
+export interface CTFun {
+  readonly tag: 'CTApp';
+  readonly left: {
+    readonly tag: 'CTApp';
+    readonly left: CTCon;
+    readonly right: CType;
+  }
+  readonly right: CType;
+}
+export const isCTFun = (type: any): type is CTFun =>
+  type.tag === 'CTApp' && type.left.tag === 'CTApp' &&
+    type.left.left.tag === 'CTCon' && type.left.left.name === '->';
+
 export const showCore = (core: CKind | CType | CVal | CComp): string => {
   if (core.tag === 'CKCon') return core.name;
   if (core.tag === 'CKFun') return `(${showCore(core.left)} -> ${showCore(core.right)})`;
   
   if (core.tag === 'CTCon') return core.name;
   if (core.tag === 'CTVar') return core.name;
+  if (isCTFun(core)) return `(${showCore(core.left.right)} -> ${showCore(core.right)})`;
   if (core.tag === 'CTApp') return `(${showCore(core.left)} ${showCore(core.right)})`;
   if (core.tag === 'CTForall') return `(forall (${core.name} : ${showCore(core.kind)}). ${showCore(core.type)})`;
   
