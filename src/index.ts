@@ -6,6 +6,7 @@ import { LTEnv, Entry, gtenv, showGTEnv } from './env';
 import { Def, DLet, showDefs, DType } from './definitions';
 import { compile, compileDefs } from './compilerJS';
 import { kType, kfun } from './kinds';
+import { setConfig } from './config';
 
 const tInt = TCon('Int');
 const tBool = TCon('Bool');
@@ -23,17 +24,20 @@ gtenv.vars.zero = Scheme([], tInt);
 gtenv.vars.inc = Scheme([], tfun(tInt, tInt));
 
 const defs: Def[] = [
-  DType('MyInt', [], tInt),
-  DType('IdF', [], tfun(tv('t'), tv('t'))),
-  DType('Id', [['t', kType]], tv('t')),
-  DType('Pair', [['a', kType], ['b', kType]], tfun(tfun(tv('a'), tv('b'), tv('r')), tv('r'))),
+  DType('MyInt', [], Scheme([], tInt)),
+  DType('IdF', [], Scheme([['t', kType]], tfun(tv('t'), tv('t')))),
+  DType('Id', [['t', kType]], Scheme([], tv('t'))),
+  DType('Pair', [['a', kType], ['b', kType]], Scheme([['r', kType]], tfun(tfun(tv('a'), tv('b'), tv('r')), tv('r')))),
   DLet('Pair', abs(['a', 'b'], Con('Pair', abs(['f'], app(v('f'), v('a'), v('b')))))),
   DLet('id', abs(['x'], v('x'))),
+  DLet('id', abs(['x'], v('x')), Scheme([['t', kType]], tfun(tv('t'), tv('t')))),
   DLet('const', abs(['x', 'y'], v('x'))),
   DLet('test', abs(['x'], Decon('IdF', v('x')))),
   DLet('test2', Con('IdF', v('id'))),
-  DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), tfun(tv('t'), tv('t')))),
+  DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), Scheme([['t', kType]], tfun(tv('t'), tv('t'))))),
 ];
+
+setConfig({ debug: false });
 
 console.log(showDefs(defs));
 inferDefs(defs);
@@ -42,8 +46,6 @@ console.log(compileDefs(defs, x => `const ${x}`));
 
 /**
  * TODO:
- * - kinds
  * - kind inference
- * 
  * - recursion without annotation
  */

@@ -13,6 +13,15 @@ export interface Cons<T> {
 export const Cons = <T>(head: T, tail: List<T>): Cons<T> =>
   ({ tag: 'Cons', head, tail });
 
+export const toArray = <T>(l: List<T>): T[] => {
+  const ret: T[] = [];
+  while (l.tag === 'Cons') {
+    ret.push(l.head);
+    l = l.tail;
+  }
+  return ret;
+};
+
 export const listFrom = <T>(vs: T[]): List<T> =>
   vs.reduceRight((x, y) => Cons(y, x), Nil as List<T>);
 export const list = <T>(...vs: T[]): List<T> => listFrom(vs);

@@ -20,16 +20,16 @@ export interface DType {
   readonly tag: 'DType';
   readonly name: TConName;
   readonly params: [TVarName, Kind][];
-  readonly type: Type;
+  readonly type: Scheme;
 }
-export const DType = (name: TConName, params: [TVarName, Kind][], type: Type): DType =>
+export const DType = (name: TConName, params: [TVarName, Kind][], type: Scheme): DType =>
   ({ tag: 'DType', name, params, type });
 
 export const showDef = (def: Def): string => {
   if (def.tag === 'DLet')
     return `let ${def.name}${def.type ? ` : ${showScheme(def.type)}` : ''} = ${showTerm(def.term)}`;
   if (def.tag === 'DType')
-    return `type ${def.name}${def.params.length === 0 ? '' : ` ${def.params.map(([x, k]) => `(${x} : ${showKind(k)})`).join(' ')}`} = ${showType(def.type)}`;
+    return `type ${def.name}${def.params.length === 0 ? '' : ` ${def.params.map(([x, k]) => `(${x} : ${showKind(k)})`).join(' ')}`} = ${showScheme(def.type)}`;
   return impossible('showDef');
 };
 export const showDefs = (ds: Def[]): string =>

@@ -2,6 +2,7 @@ import { terr, impossible } from './util';
 import { Kind, occursKMeta, showKindPruned, KMeta, eqKind, showKind } from './kinds';
 import { Type, showType } from './types';
 import { gtenv } from './env';
+import { log } from './config';
 
 const unifyKMeta = (x: KMeta, t: Kind): void => {
   if (x.kind) return unifyKinds(x.kind, t);
@@ -29,6 +30,7 @@ export type TVarKinds = { [name: string]: Kind };
 // inferKind
 
 export const kindOf = (type: Type, tvars: TVarKinds = {}): Kind => {
+  log(() => `kindOf ${showType(type)}`);
   if (type.tag === 'TCon') {
     const info = gtenv.types[type.name];
     if (!info) return terr(`undefined type ${type.name}`);
@@ -46,5 +48,5 @@ export const kindOf = (type: Type, tvars: TVarKinds = {}): Kind => {
   return impossible('kindOf');
 };
 
-export const eqKindOf = (a: Type, b: Type): boolean =>
-  eqKind(kindOf(a), kindOf(b));
+export const eqKindOf = (a: Type, b: Type, tvars: TVarKinds = {}): boolean =>
+  eqKind(kindOf(a, tvars), kindOf(b, tvars));

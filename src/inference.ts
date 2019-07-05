@@ -1,13 +1,16 @@
 import { Nil, each } from './list';
 import { Term, showTerm } from './terms';
-import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta, TCon, instantiateTVars, InstMap, tapp1, skolemize, SkolMap, occursSkol, showTypePruned, Scheme, pruneScheme, tvars, showScheme } from './types';
+import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta, TCon, instantiateTVars, InstMap, tapp1, skolemize, SkolMap, occursSkol, showTypePruned, Scheme, pruneScheme, tvars, showScheme, showType } from './types';
 import { impossible, terr } from './util';
 import { unify, subsume } from './unification';
-import { LTEnv, extend, lookup, gtenv } from './env';
+import { LTEnv, extend, lookup, gtenv, showLTEnv } from './env';
 import { Def } from './definitions';
-import { kType } from './kinds';
+import { kType, resetKMetaId, kfunFrom, showKind } from './kinds';
+import { log } from './config';
+import { kindOf } from './kindinference';
 
 const synth = (env: LTEnv, term: Term): Type => {
+  log(() => `synth ${showTerm(term)} in ${showLTEnv(env)}`);
   if (term.tag === 'Var') {
     const type = lookup(env, term.name);
     if (!type) return terr(`undefined var ${term.name}`);
@@ -26,7 +29,7 @@ const synth = (env: LTEnv, term: Term): Type => {
     return tv;
   }
   if (term.tag === 'Let') {
-    const nenv = term.type ? extend(env, term.name, Scheme([], term.type)) : env;
+    const nenv = term.type ? extend(env, term.name, term.type) : env;
     const val = synth(nenv, term.val);
     if (term.type) {
       const skols: SkolMap = {};
@@ -37,8 +40,8 @@ const synth = (env: LTEnv, term: Term): Type => {
           terr(`skolem escape in ${name} : ${showTypePruned(scheme.type)} in ${showTerm(term)}`);
       });
     }
-    const type = term.type || val;
-    return synth(extend(env, term.name, Scheme([], type)), term.body);
+    const type = term.type || Scheme([], val);
+    return synth(extend(env, term.name, type), term.body);
   }
   if (term.tag === 'Con') {
     if (!gtenv.cons[term.con])
@@ -47,9 +50,9 @@ const synth = (env: LTEnv, term: Term): Type => {
     const typeinfo = gtenv.types[term.con];
     const arg = synth(env, term.body);
     const tms: InstMap = {};
-    const type = instantiateTVars(con.params, con.type, tms);
+    const type = instantiateTVars(con.params, con.type.type, tms);
     const skols: SkolMap = {};
-    const itype = skolemize(type, skols);
+    const itype = skolemize(Scheme(con.type.params, type), skols);
     unify(arg, itype, skols);
     each(env, ({ name, scheme }) => {
       if (occursSkol(skols, scheme.type))
@@ -64,16 +67,21 @@ const synth = (env: LTEnv, term: Term): Type => {
     const typeinfo = gtenv.types[term.con];
     const arg = synth(env, term.body);
     const tms: InstMap = {};
-    const type = instantiateTVars(con.params, con.type, tms);
+    const type = instantiateTVars(con.params, con.type.type, tms);
     unify(arg, tapp1(typeinfo.tcon, con.params.map(([v]) => tms[v])));
-    return instantiate(type);
+    return instantiate(Scheme(con.type.params, type));
   }
   return impossible('synth');
 };
 
 export const infer = (term: Term, env: LTEnv = Nil): Scheme => {
+  log(() => `infer ${showTerm(term)}`);
   resetTMetaId();
-  return pruneScheme(generalize(synth(env, term)));
+  const type = synth(env, term);
+  const kind = kindOf(type);
+  if (kind !== kType)
+    return terr(`infered a type not of kind ${showKind(kType)}: ${showTypePruned(type)} : ${showKind(kind)}`);
+  return pruneScheme(generalize(type));
 };
 
 export const inferDefs = (ds: Def[]): void => {
@@ -81,9 +89,11 @@ export const inferDefs = (ds: Def[]): void => {
     if (def.tag === 'DType') {
       if (gtenv.types[def.name])
         return terr(`type ${def.name} is already defined`);
+      const ks = def.params.map(([_, k]) => k);
+      ks.push(kType);
       gtenv.types[def.name] = {
         tcon: TCon(def.name),
-        kind: kType,
+        kind: kfunFrom(ks),
       };
       gtenv.cons[def.name] = {
         params: def.params,
@@ -103,7 +113,7 @@ export const inferDefs = (ds: Def[]): void => {
     if (def.tag === 'DLet') {
       const type = infer(def.term);
       if (def.type)
-        subsume(type, def.type.type);
+        subsume(type, def.type);
       else
         gtenv.vars[def.name] = type;
     }

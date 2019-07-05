@@ -101,6 +101,7 @@ export const showType = (type: Type): string => {
 };
 
 export const showScheme = (scheme: Scheme): string =>
+  scheme.params.length === 0 ? showType(scheme.type) :
   `forall ${scheme.params.map(([x, k]) => `(${x} : ${showKind(k)})`).join(' ')}. ${showType(scheme.type)}`;
 
 export const prune = (type: Type): Type => {
@@ -185,7 +186,7 @@ export const instantiate = (scheme: Scheme, map: InstMap = {}): Type =>
   instantiateTVars(scheme.params, scheme.type, map);
 
 export type SkolMap = { [name: number]: true };
-export const skolemize = (type: Type, skols: SkolMap = {}): Type => {
+export const skolemize = (type: Scheme, skols: SkolMap = {}): Type => {
   const utms: InstMap = {};
   const itype = instantiate(type, utms);
   for (let k in utms) skols[utms[k].id] = true;
