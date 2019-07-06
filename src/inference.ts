@@ -1,22 +1,30 @@
 import { Nil, each } from './list';
-import { Term, showTerm, freshVarName } from './terms';
-import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta, TCon, instantiateTVars, InstMap, tapp1, skolemize, SkolMap, occursSkol, showTypePruned, Scheme, pruneScheme, tvars, showScheme, showType, freshTVarName, TVar } from './types';
+import { Term, showTerm, freshVarName, VarName } from './terms';
+import { Type, prune, freshTMeta, TFun, generalize, instantiate, resetTMetaId, TMeta, TCon, instantiateTVars, InstMap, tapp1, skolemize, SkolMap, occursSkol, showTypePruned, Scheme, pruneScheme, tvars, showScheme, showType, freshTVarName, TVar, TVarName } from './types';
 import { impossible, terr } from './util';
 import { unify, subsume } from './unification';
 import { LTEnv, extend, lookup, gtenv, showLTEnv } from './env';
 import { Def } from './definitions';
-import { kType, resetKMetaId, kfunFrom, showKind, KMeta, freshKMeta, pruneKind } from './kinds';
+import { kType, resetKMetaId, kfunFrom, showKind, KMeta, freshKMeta, pruneKind, Kind } from './kinds';
 import { log } from './config';
 import { kindOf, inferKind, inferKindDef, unifyKinds, TVarKinds } from './kindinference';
-import { CComp, CReturn, CVar, CAbs, CApp, CSeq, CCon, CDecon, CAbsT, showCore, CVal } from './core';
+import { CComp, CReturn, CVar, CAbs, CApp, CSeq, CCon, CDecon, CAbsT, showCore, CVal, CAppT } from './core';
 import { translateType, translateScheme, translateKind } from './translation';
+
+const applytypes = (params: [TVarName, Kind][], vr: VarName, map: InstMap, i: number = 0): CComp => {
+  if (i >= params.length) return CReturn(CVar(vr));
+  const x = freshVarName();
+  return CSeq(x, CAppT(CVar(vr), translateType(map[params[i][0]])), applytypes(params, x, map, i + 1));
+};
 
 const synth = (env: LTEnv, term: Term): [Type, () => CComp] => {
   log(() => `synth ${showTerm(term)} in ${showLTEnv(env)}`);
   if (term.tag === 'Var') {
     const type = lookup(env, term.name);
     if (!type) return terr(`undefined var ${term.name}`);
-    return [instantiate(type), () => CReturn(CVar(term.name))];
+    const map: InstMap = {};
+    const itype = instantiate(type, map);
+    return [itype, () => applytypes(type.params, term.name, map)];
   }
   if (term.tag === 'Abs') {
     const tv = freshTMeta(kType);
@@ -100,8 +108,13 @@ const synth = (env: LTEnv, term: Term): [Type, () => CComp] => {
         const v = arg();
         if (v.tag === 'CReturn') 
           return CCon(term.con, con.type.params.reduce((p, [x, k]) => CAbsT(x, translateKind(k), CReturn(p)), v.val));
-        const x = freshVarName();
-        return CSeq(x, v, CCon(term.con, con.type.params.reduce((p, [x, k]) => CAbsT(x, translateKind(k), CReturn(p)), CVar(x) as CVal)));
+        if (con.type.params.length === 0) {
+          const x = freshVarName();
+          return CSeq(x, v, CCon(term.con, CVar(x)));
+        }
+        const first = con.type.params[0];
+        const rest = con.type.params.slice(1);
+        return CCon(term.con, CAbsT(first[0], translateKind(first[1]), rest.reduce((p, [x, k]) => CReturn(CAbsT(x, translateKind(k), p)), v as CComp)));
       },
     ];
   }
@@ -114,13 +127,17 @@ const synth = (env: LTEnv, term: Term): [Type, () => CComp] => {
     const tms: InstMap = {};
     const type = instantiateTVars(con.params, con.type.type, tms);
     unify(targ, tapp1(typeinfo.tcon, con.params.map(([v]) => tms[v])));
+    const map: InstMap = {};
+    const itype = instantiate(Scheme(con.type.params, type), map);
     return [
-      instantiate(Scheme(con.type.params, type)),
+      itype,
       () => {
         const v = arg();
-        if (v.tag === 'CReturn') return CDecon(term.con, v.val);
         const x = freshVarName();
-        return CSeq(x, v, CDecon(term.con, CVar(x)));
+        if (v.tag === 'CReturn')
+          return CSeq(x, CDecon(term.con, v.val), applytypes(con.type.params, x, map));
+        const y = freshVarName();
+        return CSeq(x, v, CSeq(y, CDecon(term.con, CVar(x)), applytypes(con.params, y, map)));
       },
     ];
   }

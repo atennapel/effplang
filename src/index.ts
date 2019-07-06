@@ -35,7 +35,8 @@ const defs: Def[] = [
   DLet('const', abs(['x', 'y'], v('x'))),
   // return /\(a:Type).return /\(b:Type). @Pair /\(r:Type).return \(f:a -> b -> r). x <- f a; f b
   DLet('Pair', abs(['a', 'b'], Con('Pair', abs(['f'], app(v('f'), v('a'), v('b')))))),
-  DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), PScheme([['t', null]], tfun(tv('t'), tv('t'))))),
+  DLet('idapp', app(v('id'), v('true'))),
+  //DLet('test3', Let('myid', abs(['x'], v('x')), app(v('Pair'), app(v('myid'), v('zero')), app(v('myid'), v('true'))), PScheme([['t', null]], tfun(tv('t'), tv('t'))))),
   DLet('foldNat', abs(['n', 'z', 'f'], app(Decon('Nat', v('n')), v('z'), abs(['m'], app(v('f'), app(v('foldNat'), v('m'), v('z'), v('f')))))), PScheme([['r', null]], tfun(TCon('Nat'), tv('r'), tfun(tv('r'), tv('r')), tv('r')))),
   DLet('test', abs(['x'], Decon('IdF', v('x')))),
   DLet('test2', Con('IdF', v('id'))),
@@ -50,7 +51,7 @@ console.log(compileDefs(defs, x => `const ${x}`));
 
 /**
  * TODO:
- * - infer positions of type applications
+ * - infer positions of type applications/abstractions in let
  * - flatten Seqs
  * - CEK machine
  * - recursion without annotation
